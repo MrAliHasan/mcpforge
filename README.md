@@ -1,5 +1,10 @@
 # MCP-Maker
 
+[![PyPI version](https://img.shields.io/pypi/v/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
+[![Python](https://img.shields.io/pypi/pyversions/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
+[![Tests](https://github.com/MrAliHasan/mcp-maker/actions/workflows/tests.yml/badge.svg)](https://github.com/MrAliHasan/mcp-maker/actions/workflows/tests.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/MrAliHasan/mcp-maker/blob/main/LICENSE)
+
 ### ⚒️ Auto-generate MCP servers from any data source. Zero code required.
 
 > Point MCP-Maker at a database, API, or file directory and get a fully functional [MCP](https://modelcontextprotocol.io/) server in seconds — ready for Claude, ChatGPT, Cursor, and any MCP-compatible AI.
@@ -58,7 +63,7 @@ MCP-Maker uses FastMCP under the hood — it's not competing, it's building on t
 
 ### Want to add a connector?
 
-Every connector is a single Python file — PRs welcome! See [Contributing](#contributing).
+Every connector is a single Python file — PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
@@ -107,19 +112,30 @@ Now in Claude Desktop, add the server and ask: *"What are the top 5 artists with
 
 ---
 
-## 🤝 Contributing
+## 🔗 Use with Claude Desktop
 
-MCP-Maker is designed for community contributions — each new **connector** is a self-contained PR:
+Add the generated server to your Claude Desktop config (`claude_desktop_config.json`):
 
-1. Create `src/mcp_maker/connectors/your_connector.py`
-2. Subclass `BaseConnector`
-3. Implement `validate()` and `inspect()`
-4. Register with `register_connector("scheme", YourConnector)`
-5. Add tests
+```json
+{
+  "mcpServers": {
+    "my-data": {
+      "command": "python",
+      "args": ["/absolute/path/to/mcp_server.py"]
+    }
+  }
+}
+```
 
-See `connectors/sqlite.py` as a reference implementation.
+Restart Claude Desktop and your data is accessible via natural language!
 
 ---
+
+## 🤝 Contributing
+
+MCP-Maker is designed for community contributions — each new **connector** is a self-contained PR.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions and a step-by-step connector creation guide.
 
 ## 📦 Installation
 
@@ -137,6 +153,6 @@ pip install mcp-maker[all]
 pip install mcp-maker[dev]
 ```
 
-## License
+## 📄 License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
