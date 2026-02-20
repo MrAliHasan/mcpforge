@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/mcpforge
+      url: https://pypi.org/p/mcp-maker
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
