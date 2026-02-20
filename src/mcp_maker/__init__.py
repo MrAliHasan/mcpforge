@@ -5,4 +5,4 @@ Point MCP-Maker at a database, API, or file directory and get a
 fully functional MCP server — zero Python code required.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
