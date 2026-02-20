@@ -1,0 +1,256 @@
+"""
+Auto-generated MCP Server by MCPForge
+Source: {{ source_type }} ({{ source_uri }})
+
+This server was generated automatically. You can customize it by editing
+the tools and resources below, or regenerate it with `mcpforge init`.
+
+Run with: mcpforge serve
+Or directly: python mcp_server.py
+"""
+
+{% if source_type == "sqlite" %}
+import sqlite3
+{% elif source_type == "files" %}
+import csv
+import json
+import os
+{% endif %}
+from mcp.server.fastmcp import FastMCP
+
+# ─── Server Setup ───
+
+mcp = FastMCP(
+    "{{ source_type }}-server",
+    description="Auto-generated MCP server for {{ source_type }} data source",
+)
+
+{% if source_type == "sqlite" %}
+# ─── Database Connection ───
+
+DB_PATH = "{{ schema.metadata.get('db_path', source_uri) }}"
+
+
+def _get_connection():
+    """Get a SQLite database connection."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Table: {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+
+@mcp.tool()
+def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
+    """List rows from the '{{ table.name }}' table.
+
+    Args:
+        limit: Maximum number of rows to return (default: 50, max: 500).
+        offset: Number of rows to skip for pagination.
+
+    Returns:
+        List of {{ table.name }} records as dictionaries.
+    """
+    limit = min(limit, 500)
+    conn = _get_connection()
+    cursor = conn.execute(
+        "SELECT * FROM '{{ table.name }}' LIMIT ? OFFSET ?",
+        (limit, offset),
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+{% if table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+@mcp.tool()
+def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
+    """Get a single row from '{{ table.name }}' by its {{ pk.name }}.
+
+    Args:
+        {{ pk.name }}: The {{ pk.name }} of the record to retrieve.
+
+    Returns:
+        The matching record as a dictionary, or None if not found.
+    """
+    conn = _get_connection()
+    cursor = conn.execute(
+        "SELECT * FROM '{{ table.name }}' WHERE {{ pk.name }} = ?",
+        ({{ pk.name }},),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+{% endif %}
+
+{% if table.searchable_columns %}
+{% set search_col = table.searchable_columns[0] %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
+    """Search the '{{ table.name }}' table by matching against text columns.
+
+    Args:
+        query: Search text to match (case-insensitive).
+        limit: Maximum results to return (default: 20).
+
+    Returns:
+        List of matching records.
+    """
+    limit = min(limit, 100)
+    conn = _get_connection()
+    conditions = []
+    params = []
+    {% for col in table.searchable_columns %}
+    {% if col.type.value == 'string' %}
+    conditions.append("{{ col.name }} LIKE ?")
+    params.append(f"%{query}%")
+    {% endif %}
+    {% endfor %}
+
+    if not conditions:
+        conn.close()
+        return []
+
+    where_clause = " OR ".join(conditions)
+    cursor = conn.execute(
+        f"SELECT * FROM '{{ table.name }}' WHERE {where_clause} LIMIT ?",
+        (*params, limit),
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+{% endif %}
+
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of rows in the '{{ table.name }}' table.
+
+    Returns:
+        Total row count.
+    """
+    conn = _get_connection()
+    cursor = conn.execute("SELECT COUNT(*) as cnt FROM '{{ table.name }}'")
+    count = cursor.fetchone()["cnt"]
+    conn.close()
+    return count
+
+
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the schema (column names and types) of the '{{ table.name }}' table.
+
+    Returns:
+        Dictionary with column names as keys and types as values.
+    """
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
+
+{% endfor %}
+{% elif source_type == "files" %}
+# ─── File Data Source ───
+
+DATA_DIR = "{{ source_uri }}"
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# File: {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+@mcp.tool()
+def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
+    """List records from the '{{ table.name }}' dataset.
+
+    Args:
+        limit: Maximum rows to return (default: 50, max: 500).
+        offset: Number of rows to skip for pagination.
+
+    Returns:
+        List of records as dictionaries.
+    """
+    limit = min(limit, 500)
+    filepath = os.path.join(DATA_DIR, "{{ table.name }}.csv")
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        return rows[offset:offset + limit]
+
+    filepath = os.path.join(DATA_DIR, "{{ table.name }}.json")
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data[offset:offset + limit]
+        return [data]
+
+    return []
+
+
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
+    """Search the '{{ table.name }}' dataset for matching records.
+
+    Args:
+        query: Text to search for (case-insensitive, matches any field).
+        limit: Maximum results to return.
+
+    Returns:
+        List of matching records.
+    """
+    all_rows = list_{{ table.name }}(limit=10000)
+    query_lower = query.lower()
+    results = []
+    for row in all_rows:
+        for value in row.values():
+            if query_lower in str(value).lower():
+                results.append(row)
+                break
+        if len(results) >= limit:
+            break
+    return results
+
+
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of records in the '{{ table.name }}' dataset."""
+    return len(list_{{ table.name }}(limit=100000))
+
+{% endfor %}
+
+{% for resource in resources %}
+@mcp.resource("{{ resource.name }}://content")
+def read_{{ resource.name | replace('-', '_') | replace(' ', '_') }}() -> str:
+    """Read the contents of the '{{ resource.name }}' file.
+
+    Returns:
+        The full text content of the file.
+    """
+    with open("{{ resource.uri }}", "r", encoding="utf-8") as f:
+        return f.read()
+
+{% endfor %}
+{% endif %}
+
+# ─── Run Server ───
+
+if __name__ == "__main__":
+    mcp.run()
