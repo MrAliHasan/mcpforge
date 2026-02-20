@@ -1,5 +1,5 @@
 """
-MCPForge SQLite Connector — Inspect SQLite databases.
+MCP-Maker SQLite Connector — Inspect SQLite databases.
 """
 
 import os

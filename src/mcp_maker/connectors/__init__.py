@@ -1,8 +1,8 @@
 """
-MCPForge Connectors — Inspect data sources and generate schemas.
+MCP-Maker Connectors — Inspect data sources and generate schemas.
 
 Each connector knows how to connect to a specific data source type,
-inspect its structure, and produce a universal MCPForge schema.
+inspect its structure, and produce a universal MCP-Maker schema.
 """
 
 from .base import BaseConnector

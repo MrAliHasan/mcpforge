@@ -1,37 +1,37 @@
-# MCPForge
+# MCP-Maker
 
 ### ⚒️ Auto-generate MCP servers from any data source. Zero code required.
 
-> Point MCPForge at a database, API, or file directory and get a fully functional [MCP](https://modelcontextprotocol.io/) server in seconds — ready for Claude, ChatGPT, Cursor, and any MCP-compatible AI.
+> Point MCP-Maker at a database, API, or file directory and get a fully functional [MCP](https://modelcontextprotocol.io/) server in seconds — ready for Claude, ChatGPT, Cursor, and any MCP-compatible AI.
 
 ---
 
 ## 🚀 Quick Start
 
 ```bash
-pip install mcpforge
+pip install mcp-maker
 
 # From a SQLite database
-mcpforge init sqlite:///my_database.db
-mcpforge serve
+mcp-maker init sqlite:///my_database.db
+mcp-maker serve
 
 # From CSV/JSON files
-mcpforge init ./data/
-mcpforge serve
+mcp-maker init ./data/
+mcp-maker serve
 
 # That's it! Your AI can now query your data.
 ```
 
-## Why MCPForge?
+## Why MCP-Maker?
 
-| | FastMCP | MCPForge |
+| | FastMCP | MCP-Maker |
 |---|---------|----------|
 | **Approach** | You write Python tools | It generates everything |
 | **Setup time** | Minutes–hours | Seconds |
 | **Code required** | Yes | No |
 | **Best for** | Custom logic | Data access |
 
-MCPForge uses FastMCP under the hood — it's not competing, it's building on top.
+MCP-Maker uses FastMCP under the hood — it's not competing, it's building on top.
 
 ---
 
@@ -39,10 +39,10 @@ MCPForge uses FastMCP under the hood — it's not competing, it's building on to
 
 | Command | Description |
 |---------|-------------|
-| `mcpforge init <source>` | Generate an MCP server from a data source |
-| `mcpforge inspect <source>` | Preview what would be generated (dry run) |
-| `mcpforge serve` | Run the generated MCP server |
-| `mcpforge list-connectors` | Show available connectors |
+| `mcp-maker init <source>` | Generate an MCP server from a data source |
+| `mcp-maker inspect <source>` | Preview what would be generated (dry run) |
+| `mcp-maker serve` | Run the generated MCP server |
+| `mcp-maker list-connectors` | Show available connectors |
 
 ## 🔌 Connectors
 
@@ -64,7 +64,7 @@ Every connector is a single Python file — PRs welcome! See [Contributing](#con
 
 ## 🛠️ What Gets Generated
 
-For each table in your data source, MCPForge generates:
+For each table in your data source, MCP-Maker generates:
 
 | Tool | Description |
 |------|-------------|
@@ -81,9 +81,9 @@ For text files, it generates `read_{name}()` resources.
 ## 💡 Example: SQLite Database
 
 ```bash
-$ mcpforge init sqlite:///chinook.db
+$ mcp-maker init sqlite:///chinook.db
 
-⚒️  MCPForge v0.1.0
+⚒️  MCP-Maker v0.1.0
 
 ✅ Connected to sqlite source
 
@@ -99,8 +99,8 @@ $ mcpforge init sqlite:///chinook.db
 
 🎉 Generated: mcp_server.py
 
-$ mcpforge serve
-🚀 MCPForge Server running...
+$ mcp-maker serve
+🚀 MCP-Maker Server running...
 ```
 
 Now in Claude Desktop, add the server and ask: *"What are the top 5 artists with the most albums?"*
@@ -109,9 +109,9 @@ Now in Claude Desktop, add the server and ask: *"What are the top 5 artists with
 
 ## 🤝 Contributing
 
-MCPForge is designed for community contributions — each new **connector** is a self-contained PR:
+MCP-Maker is designed for community contributions — each new **connector** is a self-contained PR:
 
-1. Create `src/mcpforge/connectors/your_connector.py`
+1. Create `src/mcp_maker/connectors/your_connector.py`
 2. Subclass `BaseConnector`
 3. Implement `validate()` and `inspect()`
 4. Register with `register_connector("scheme", YourConnector)`
@@ -125,16 +125,16 @@ See `connectors/sqlite.py` as a reference implementation.
 
 ```bash
 # Core (SQLite + Files)
-pip install mcpforge
+pip install mcp-maker
 
 # With PostgreSQL support
-pip install mcpforge[postgres]
+pip install mcp-maker[postgres]
 
 # With all connectors
-pip install mcpforge[all]
+pip install mcp-maker[all]
 
 # Development
-pip install mcpforge[dev]
+pip install mcp-maker[dev]
 ```
 
 ## License

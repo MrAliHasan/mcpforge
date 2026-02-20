@@ -1,5 +1,5 @@
 """
-MCPForge Schema — Universal data source representation.
+MCP-Maker Schema — Universal data source representation.
 
 This module defines the schema types that all connectors produce.
 The generator then uses these schemas to create MCP server code.

@@ -1,5 +1,5 @@
 """
-Tests for MCPForge core functionality.
+Tests for MCP-Maker core functionality.
 """
 
 import csv
@@ -10,17 +10,17 @@ import tempfile
 
 import pytest
 
-from mcpforge.core.schema import (
+from mcp_maker.core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
     map_sql_type,
 )
-from mcpforge.connectors.base import get_connector, register_connector
-from mcpforge.connectors.sqlite import SQLiteConnector
-from mcpforge.connectors.files import FileConnector
-from mcpforge.core.generator import generate_server_code
+from mcp_maker.connectors.base import get_connector, register_connector
+from mcp_maker.connectors.sqlite import SQLiteConnector
+from mcp_maker.connectors.files import FileConnector
+from mcp_maker.core.generator import generate_server_code
 
 
 # ─── Schema Tests ───

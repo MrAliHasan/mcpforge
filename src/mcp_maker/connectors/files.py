@@ -1,5 +1,5 @@
 """
-MCPForge File Connector — Inspect CSV, JSON, and other file-based data sources.
+MCP-Maker File Connector — Inspect CSV, JSON, and other file-based data sources.
 """
 
 import csv

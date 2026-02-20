@@ -1,5 +1,5 @@
 """
-MCPForge Code Generator — Generates MCP server code from schemas.
+MCP-Maker Code Generator — Generates MCP server code from schemas.
 
 Takes a DataSourceSchema and produces a complete, runnable MCP server
 Python file using FastMCP (part of the official mcp SDK).

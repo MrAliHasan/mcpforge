@@ -1,5 +1,5 @@
 """
-MCPForge Base Connector — Abstract interface for all data source connectors.
+MCP-Maker Base Connector — Abstract interface for all data source connectors.
 """
 
 from abc import ABC, abstractmethod
@@ -101,7 +101,7 @@ def get_connector(uri: str) -> BaseConnector:
         f"No connector found for URI: {uri}\n"
         f"Available connectors: {', '.join(_CONNECTOR_REGISTRY.keys())}\n"
         f"Examples:\n"
-        f"  mcpforge init sqlite:///my.db\n"
-        f"  mcpforge init ./data/\n"
-        f"  mcpforge init postgres://user:pass@localhost/mydb"
+        f"  mcp-maker init sqlite:///my.db\n"
+        f"  mcp-maker init ./data/\n"
+        f"  mcp-maker init postgres://user:pass@localhost/mydb"
     )

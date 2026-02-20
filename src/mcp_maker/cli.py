@@ -1,11 +1,11 @@
 """
-MCPForge CLI — The command-line interface for MCPForge.
+MCP-Maker CLI — The command-line interface for MCP-Maker.
 
 Usage:
-    mcpforge init <source>     Generate an MCP server from a data source
-    mcpforge serve             Run the generated MCP server
-    mcpforge inspect <source>  Preview what would be generated (dry run)
-    mcpforge list-connectors   Show available connectors
+    mcp-maker init <source>     Generate an MCP server from a data source
+    mcp-maker serve             Run the generated MCP server
+    mcp-maker inspect <source>  Preview what would be generated (dry run)
+    mcp-maker list-connectors   Show available connectors
 """
 
 import os
@@ -20,7 +20,7 @@ from rich.table import Table as RichTable
 from . import __version__
 
 app = typer.Typer(
-    name="mcpforge",
+    name="mcp-maker",
     help="⚒️  Auto-generate MCP servers from any data source.",
     add_completion=False,
     no_args_is_help=True,
@@ -54,9 +54,9 @@ def init(
     """⚒️  Generate an MCP server from a data source.
 
     Examples:
-        mcpforge init sqlite:///my.db
-        mcpforge init ./data/
-        mcpforge init my_database.sqlite
+        mcp-maker init sqlite:///my.db
+        mcp-maker init ./data/
+        mcp-maker init my_database.sqlite
     """
     _load_connectors()
     from .connectors.base import get_connector
@@ -64,7 +64,7 @@ def init(
 
     console.print()
     console.print(
-        Panel.fit("⚒️  [bold cyan]MCPForge[/bold cyan]", subtitle="v" + __version__)
+        Panel.fit("⚒️  [bold cyan]MCP-Maker[/bold cyan]", subtitle="v" + __version__)
     )
 
     # Step 1: Resolve connector
@@ -100,7 +100,7 @@ def init(
     console.print(f"  🎉 Generated: [bold green]{output_path}[/bold green]")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
-    console.print(f"    [cyan]mcpforge serve[/cyan]           — Run the server")
+    console.print(f"    [cyan]mcp-maker serve[/cyan]           — Run the server")
     console.print(f"    [cyan]python {filename}[/cyan]  — Run directly")
     console.print()
 
@@ -158,13 +158,13 @@ def serve(
     if not os.path.isfile(server_file):
         console.print(
             f"\n[red]Error:[/red] Server file not found: {server_file}\n"
-            f"Run [cyan]mcpforge init <source>[/cyan] first to generate it.\n"
+            f"Run [cyan]mcp-maker init <source>[/cyan] first to generate it.\n"
         )
         raise typer.Exit(code=1)
 
     console.print()
     console.print(
-        Panel.fit("🚀 [bold cyan]MCPForge Server[/bold cyan]", subtitle="v" + __version__)
+        Panel.fit("🚀 [bold cyan]MCP-Maker Server[/bold cyan]", subtitle="v" + __version__)
     )
     console.print(f"  Running: [green]{server_file}[/green]")
     console.print(f"  Press [bold]Ctrl+C[/bold] to stop\n")
@@ -208,7 +208,7 @@ def list_connectors():
 
 @app.callback()
 def main():
-    """⚒️  MCPForge — Auto-generate MCP servers from any data source."""
+    """⚒️  MCP-Maker — Auto-generate MCP servers from any data source."""
 
 
 def _print_schema_summary(schema):
