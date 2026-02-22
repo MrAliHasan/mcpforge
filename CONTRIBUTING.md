@@ -2,22 +2,41 @@
 
 Thank you for your interest in contributing! MCP-Maker is designed to make contributing easy — each **connector** is a self-contained Python file.
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Git Workflow)
+
+1. **Fork the repository** on GitHub.
+2. **Clone your fork** locally:
 
 ```bash
-# Clone the repo
-git clone https://github.com/MrAliHasan/mcp-maker.git
+git clone https://github.com/YOUR_USERNAME/mcp-maker.git
 cd mcp-maker
+```
 
+3. **Create a branch** for your feature or fix:
+
+```bash
+git checkout -b feature/your-feature-name
+# or
+git checkout -b fix/your-bugfix-name
+```
+
+4. **Set up your environment**:
+
+```bash
 # Create a virtual environment
 python -m venv .venv
+
+# Activate it
 source .venv/bin/activate  # Linux/Mac
 # .venv\Scripts\activate   # Windows
 
 # Install in development mode
-pip install -e ".[dev]"
+pip install -e ".[dev,all]"
+```
 
-# Run tests
+5. **Run tests** to ensure you're starting clean:
+
+```bash
 pytest tests/ -v
 ```
 
@@ -73,21 +92,28 @@ from .your_connector import YourDBConnector
 
 ### Step 3: Add Lazy Loading in CLI
 
-Add the import to `cli.py`'s `_load_connectors()` function:
+Add the import to `src/mcp_maker/cli/generator.py`'s `_load_connectors()` function:
 
 ```python
-from .connectors import your_connector  # noqa: F401
+    try:
+        from mcp_maker.connectors import your_connector  # noqa: F401
+    except ImportError:
+        pass
 ```
 
 ### Step 4: Write Tests
 
-Add tests to `tests/test_mcpforge.py` or create a new test file.
+Create a new test file for your connector in `tests/connectors/test_yourdb.py`.
 
-### Step 5: Submit PR
+### Step 5: Submit Pull Request
+
+1. **Commit your changes**: `git commit -m "feat: Add YourDB connector"`
+2. **Push to your fork**: `git push origin feature/your-feature-name`
+3. **Open a PR** against the `main` branch of `MrAliHasan/mcp-maker`.
 
 - Reference `connectors/sqlite.py` as a model implementation
 - Include a brief example in your PR description
-- Make sure all tests pass
+- Make sure all `pytest` checks pass
 
 ## 📝 Other Contributions
 
@@ -104,8 +130,8 @@ Besides connectors, we welcome:
 # Run all tests
 pytest tests/ -v
 
-# Run a specific test class
-pytest tests/test_mcpforge.py::TestSQLiteConnector -v
+# Run a specific test module
+pytest tests/connectors/test_sqlite.py -v
 ```
 
 ## 📐 Code Style
