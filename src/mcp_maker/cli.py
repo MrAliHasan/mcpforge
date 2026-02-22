@@ -47,6 +47,21 @@ def _load_connectors():
     except ImportError:
         pass
 
+    try:
+        from .connectors import airtable  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from .connectors import gsheets  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from .connectors import notion  # noqa: F401
+    except ImportError:
+        pass
+
 
 @app.command()
 def init(
@@ -69,6 +84,11 @@ def init(
         "--read-write",
         help="Generate write tools (INSERT, UPDATE, DELETE) in addition to read tools.",
     ),
+    tables: str = typer.Option(
+        None,
+        "--tables", "-t",
+        help="Comma-separated list of table names to include (default: all). Example: --tables users,orders",
+    ),
 ):
     """⚒️  Generate an MCP server from a data source.
 
@@ -76,8 +96,8 @@ def init(
         mcp-maker init sqlite:///my.db
         mcp-maker init ./data/
         mcp-maker init postgres://user:pass@localhost/mydb
-        mcp-maker init mysql://user:pass@localhost/mydb
         mcp-maker init sqlite:///my.db --read-write
+        mcp-maker init sqlite:///my.db --tables users,orders
     """
     _load_connectors()
     from .connectors.base import get_connector
@@ -110,6 +130,19 @@ def init(
     with console.status("[bold green]Inspecting data source..."):
         schema = connector.inspect()
 
+    # Filter tables if --tables specified
+    if tables:
+        wanted = {t.strip().lower() for t in tables.split(",") if t.strip()}
+        before_count = len(schema.tables)
+        schema.tables = [t for t in schema.tables if t.name.lower() in wanted]
+        skipped = before_count - len(schema.tables)
+        if skipped > 0:
+            console.print(f"  📋 Filtered: keeping {len(schema.tables)} of {before_count} tables ({skipped} skipped)")
+        if not schema.tables:
+            console.print("\n[red]Error:[/red] No matching tables found.")
+            console.print(f"  Requested: {tables}")
+            raise typer.Exit(code=1)
+
     # Print schema summary
     _print_schema_summary(schema)
 
@@ -141,6 +174,11 @@ def inspect(
         ...,
         help="Data source URI to inspect (dry run, no files generated).",
     ),
+    tables: str = typer.Option(
+        None,
+        "--tables", "-t",
+        help="Comma-separated list of table names to include (default: all).",
+    ),
 ):
     """🔍 Preview the schema that would be generated (dry run)."""
     _load_connectors()
@@ -156,6 +194,11 @@ def inspect(
         except (ValueError, FileNotFoundError, ConnectionError, ImportError) as e:
             console.print(f"\n[red]Error:[/red] {e}")
             raise typer.Exit(code=1)
+
+    # Filter tables if --tables specified
+    if tables:
+        wanted = {t.strip().lower() for t in tables.split(",") if t.strip()}
+        schema.tables = [t for t in schema.tables if t.name.lower() in wanted]
 
     _print_schema_summary(schema)
 
@@ -245,6 +288,9 @@ def list_connectors():
         "files": ("FileConnector", True),
         "postgres": ("PostgresConnector", "postgres" in _CONNECTOR_REGISTRY),
         "mysql": ("MySQLConnector", "mysql" in _CONNECTOR_REGISTRY),
+        "airtable": ("AirtableConnector", "airtable" in _CONNECTOR_REGISTRY),
+        "gsheet": ("GoogleSheetsConnector", "gsheet" in _CONNECTOR_REGISTRY),
+        "notion": ("NotionConnector", "notion" in _CONNECTOR_REGISTRY),
     }
 
     for scheme, (cls_name, available) in all_connectors.items():
@@ -254,6 +300,67 @@ def list_connectors():
 
     console.print(table)
     console.print()
+
+
+@app.command()
+def bases():
+    """🗂️  Discover Airtable bases accessible by your API key.
+
+    Lists all Airtable bases visible to your AIRTABLE_API_KEY token.
+    Use the base ID with: mcp-maker init airtable://BASE_ID
+
+    Requires AIRTABLE_API_KEY environment variable.
+    """
+    console.print()
+    console.print(
+        Panel.fit("🗂️  [bold cyan]Airtable Base Discovery[/bold cyan]", subtitle="v" + __version__)
+    )
+
+    api_key = os.environ.get("AIRTABLE_API_KEY") or os.environ.get("AIRTABLE_TOKEN")
+    if not api_key:
+        console.print(
+            "\n[red]Error:[/red] AIRTABLE_API_KEY environment variable not set.\n"
+            "Set it with: [cyan]export AIRTABLE_API_KEY=pat_xxxxxxxxxxxx[/cyan]\n"
+            "Get a token from: https://airtable.com/create/tokens\n"
+        )
+        raise typer.Exit(code=1)
+
+    try:
+        from pyairtable import Api
+    except ImportError:
+        console.print(
+            "\n[red]Error:[/red] pyairtable not installed.\n"
+            "Install with: [cyan]pip install mcp-maker[airtable][/cyan]\n"
+        )
+        raise typer.Exit(code=1)
+
+    with console.status("[bold green]Fetching Airtable bases..."):
+        try:
+            api = Api(api_key)
+            base_list = api.bases()
+        except Exception as e:
+            console.print(f"\n[red]Error:[/red] {e}")
+            raise typer.Exit(code=1)
+
+    if not base_list:
+        console.print("\n  No bases found. Check your API key permissions.\n")
+        return
+
+    table = RichTable(title=f"📋 Accessible Bases ({len(base_list)})")
+    table.add_column("Base ID", style="cyan", no_wrap=True)
+    table.add_column("Name", style="green")
+    table.add_column("Command", style="dim")
+
+    for b in base_list:
+        base_id = b.id
+        base_name = b.name or "—"
+        cmd = f"mcp-maker init airtable://{base_id}"
+        table.add_row(base_id, base_name, cmd)
+
+    console.print()
+    console.print(table)
+    console.print()
+    console.print("  [dim]Run any command above to generate an MCP server for that base.[/dim]\n")
 
 
 @app.command()
@@ -407,3 +514,4 @@ def _print_schema_summary(schema):
 
         console.print()
         console.print(res_table)
+

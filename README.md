@@ -1,141 +1,129 @@
-# MCP-Maker
+# ⚒️ MCP-Maker
 
 [![PyPI version](https://img.shields.io/pypi/v/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
-[![Python](https://img.shields.io/pypi/pyversions/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
-[![Tests](https://github.com/MrAliHasan/mcp-maker/actions/workflows/tests.yml/badge.svg)](https://github.com/MrAliHasan/mcp-maker/actions/workflows/tests.yml)
+[![Python 3.10+](https://img.shields.io/pypi/pyversions/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/MrAliHasan/mcp-maker/blob/main/LICENSE)
 
-### ⚒️ Auto-generate MCP servers from any data source. Zero code required.
+**Auto-generate MCP servers from any data source. Zero code required.**
 
-> Point MCP-Maker at a database, API, or file directory and get a fully functional [MCP](https://modelcontextprotocol.io/) server in seconds — ready for Claude, ChatGPT, Cursor, and any MCP-compatible AI.
+Point MCP-Maker at a database, spreadsheet, or directory and get a fully functional [MCP](https://modelcontextprotocol.io/) server in seconds — ready for Claude, ChatGPT, Cursor, and any MCP-compatible AI.
+
+> **Note:** MCP-Maker is built on top of the official [MCP Python SDK](https://pypi.org/project/mcp/) (`mcp` package). The SDK is the low-level framework for building MCP servers in Python — **you write every tool, resource, and handler yourself**. MCP-Maker uses that SDK under the hood to **auto-generate** everything from your data source. Think of it like Django vs raw SQL: same power, less work.
 
 ---
 
-## 🚀 Quick Start
+## How It Works
+
+```
+Your Data Source          MCP-Maker              MCP Server
+┌──────────────┐    ┌──────────────────┐    ┌───────────────────┐
+│ SQLite DB    │    │                  │    │ list_users()      │
+│ Google Sheet │───▶│  mcp-maker init  │───▶│ search_users()    │
+│ Airtable     │    │                  │    │ count_users()     │
+│ Notion DB    │    │  (auto-inspect)  │    │ create_users()    │
+│ CSV files    │    │  (auto-generate) │    │ ... 10+ tools     │
+│ PostgreSQL   │    │                  │    │                   │
+│ MySQL        │    └──────────────────┘    └───────────────────┘
+└──────────────┘                            Ready for Claude ✅
+```
+
+## Quick Start (2 minutes)
+
+### Step 1: Install
 
 ```bash
 pip install mcp-maker
-
-# From a SQLite database
-mcp-maker init sqlite:///my_database.db
-mcp-maker serve
-
-# From CSV/JSON files
-mcp-maker init ./data/
-mcp-maker serve
-
-# That's it! Your AI can now query your data.
 ```
 
-## Why MCP-Maker?
-
-| | FastMCP | MCP-Maker |
-|---|---------|----------|
-| **Approach** | You write Python tools | It generates everything |
-| **Setup time** | Minutes–hours | Seconds |
-| **Code required** | Yes | No |
-| **Best for** | Custom logic | Data access |
-
-MCP-Maker uses FastMCP under the hood — it's not competing, it's building on top.
-
----
-
-## 📋 Commands
-
-| Command | Description |
-|---------|-------------|
-| `mcp-maker init <source>` | Generate an MCP server from a data source |
-| `mcp-maker inspect <source>` | Preview what would be generated (dry run) |
-| `mcp-maker serve` | Run the generated MCP server |
-| `mcp-maker list-connectors` | Show available connectors |
-
-## 🔌 Connectors
-
-### Built-in
-
-| Connector | URI Format | Status |
-|-----------|-----------|--------|
-| **SQLite** | `sqlite:///path/to/db.sqlite` | ✅ Ready |
-| **Files** (CSV, JSON, txt) | `./path/to/directory/` | ✅ Ready |
-| **PostgreSQL** | `postgres://user:pass@host/db` | 🔜 Coming |
-| **MySQL** | `mysql://user:pass@host/db` | 🔜 Coming |
-| **Airtable** | `airtable://appXXXX` | 🔜 Coming |
-
-### Want to add a connector?
-
-Every connector is a single Python file — PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
-
----
-
-## 🛠️ What Gets Generated
-
-For each table in your data source, MCP-Maker generates:
-
-| Tool | Description |
-|------|-------------|
-| `list_{table}(limit, offset)` | Paginated listing |
-| `get_{table}_by_{pk}(id)` | Get by primary key |
-| `search_{table}(query)` | Full-text search |
-| `count_{table}()` | Row count |
-| `schema_{table}()` | Column names and types |
-
-For text files, it generates `read_{name}()` resources.
-
----
-
-## 💡 Example: SQLite Database
+### Step 2: Generate a server from your data
 
 ```bash
-$ mcp-maker init sqlite:///chinook.db
+# SQLite database
+mcp-maker init sqlite:///path/to/my_database.db
 
-⚒️  MCP-Maker v0.1.0
+# CSV/JSON files in a directory
+mcp-maker init ./my-data/
 
-✅ Connected to sqlite source
+# Google Sheets (see docs for auth setup)
+mcp-maker init gsheet://YOUR_SPREADSHEET_ID
 
-┌──────────────────────────────────┐
-│ 📊 Discovered Tables (11)       │
-├──────────┬──────────┬────────────┤
-│ Table    │ Columns  │ Rows       │
-├──────────┼──────────┼────────────┤
-│ albums   │ id, ...  │ 347        │
-│ artists  │ id, ...  │ 275        │
-│ tracks   │ id, ...  │ 3503       │
-└──────────┴──────────┴────────────┘
+# Airtable
+mcp-maker init airtable://appXXXXXXXXXX
 
-🎉 Generated: mcp_server.py
-
-$ mcp-maker serve
-🚀 MCP-Maker Server running...
+# Notion
+mcp-maker init notion://DATABASE_ID
 ```
 
-Now in Claude Desktop, add the server and ask: *"What are the top 5 artists with the most albums?"*
+This creates a `mcp_server.py` file with all your tools.
+
+### Step 3: Connect to Claude Desktop
+
+```bash
+# Auto-configure Claude Desktop
+mcp-maker config --install
+
+# Restart Claude Desktop, then ask:
+# "What tables are in my database?"
+# "Show me the top 10 customers"
+# "Search for records containing 'Python'"
+```
+
+That's it. Your AI can now query your data.
 
 ---
 
-## 🔗 Use with Claude Desktop
+## 📖 Documentation
 
-Add the generated server to your Claude Desktop config (`claude_desktop_config.json`):
+**👉 [Getting Started Guide](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/getting-started.md)** — Tutorial, installation, first server, Claude Desktop setup
 
-```json
-{
-  "mcpServers": {
-    "my-data": {
-      "command": "python",
-      "args": ["/absolute/path/to/mcp_server.py"]
-    }
-  }
-}
-```
+### Connector Guides (with step-by-step setup, examples, and troubleshooting)
 
-Restart Claude Desktop and your data is accessible via natural language!
+| Connector | Guide |
+|-----------|-------|
+| SQLite | [docs/sqlite.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/sqlite.md) |
+| Files (CSV/JSON) | [docs/files.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/files.md) |
+| PostgreSQL | [docs/postgresql.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/postgresql.md) |
+| MySQL | [docs/mysql.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/mysql.md) |
+| Airtable | [docs/airtable.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/airtable.md) — Formulas, views, sorting, CRUD |
+| Google Sheets | [docs/google-sheets.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/google-sheets.md) — GCP service account setup |
+| Notion | [docs/notion.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/notion.md) — Integration setup, multi-DB support |
 
 ---
 
-## 🤝 Contributing
+## 🔌 Supported Connectors (7)
 
-MCP-Maker is designed for community contributions — each new **connector** is a self-contained PR.
+| Connector | URI Format | Auth Required | Install |
+|-----------|-----------|-------------|---------|
+| SQLite | `sqlite:///my.db` | ❌ | Built-in |
+| Files | `./data/` | ❌ | Built-in |
+| PostgreSQL | `postgres://user:pass@host/db` | ✅ DB creds | `pip install mcp-maker[postgres]` |
+| MySQL | `mysql://user:pass@host/db` | ✅ DB creds | `pip install mcp-maker[mysql]` |
+| Airtable | `airtable://appXXXX` | ✅ API key | `pip install mcp-maker[airtable]` |
+| Google Sheets | `gsheet://SPREADSHEET_ID` | ✅ Service acct | `pip install mcp-maker[gsheets]` |
+| Notion | `notion://DATABASE_ID` | ✅ Integration | `pip install mcp-maker[notion]` |
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed instructions and a step-by-step connector creation guide.
+Install all connectors at once:
+
+```bash
+pip install mcp-maker[all]
+```
+
+---
+
+## CLI Commands
+
+```bash
+mcp-maker init <source>        # Generate an MCP server
+mcp-maker init <source> --read-write  # Include write operations
+mcp-maker serve                # Run the generated server
+mcp-maker inspect <source>     # Preview what would be generated (dry run)
+mcp-maker config               # Show Claude Desktop config
+mcp-maker config --install     # Auto-write Claude Desktop config
+mcp-maker list-connectors      # Show available connectors
+mcp-maker bases                # Discover Airtable bases
+```
+
+---
 
 ## 📦 Installation
 
@@ -146,13 +134,31 @@ pip install mcp-maker
 # With PostgreSQL support
 pip install mcp-maker[postgres]
 
-# With all connectors
+# With Airtable support
+pip install mcp-maker[airtable]
+
+# With Google Sheets support
+pip install mcp-maker[gsheets]
+
+# With Notion support
+pip install mcp-maker[notion]
+
+# All connectors
 pip install mcp-maker[all]
 
 # Development
 pip install mcp-maker[dev]
 ```
 
+---
+
+## 🤝 Contributing
+
+MCP-Maker is designed for community contributions — each new **connector** is a self-contained PR.
+
+See [CONTRIBUTING.md](https://github.com/MrAliHasan/mcp-maker/blob/main/CONTRIBUTING.md) for detailed instructions and a step-by-step connector creation guide.
+
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [MIT License](https://github.com/MrAliHasan/mcp-maker/blob/main/LICENSE).
+

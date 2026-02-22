@@ -490,3 +490,255 @@ class TestConfigCommand:
         assert path is not None
         assert "claude_desktop_config.json" in path
 
+
+# ─── Airtable Connector Tests ───
+
+
+class TestAirtableConnector:
+    def test_source_type(self):
+        from mcp_maker.connectors.airtable import AirtableConnector
+        connector = AirtableConnector("airtable://appABC123")
+        assert connector.source_type == "airtable"
+
+    def test_get_base_id(self):
+        from mcp_maker.connectors.airtable import AirtableConnector
+        connector = AirtableConnector("airtable://appXYZ789")
+        assert connector._get_base_id() == "appXYZ789"
+
+    def test_get_api_key_missing(self, monkeypatch):
+        from mcp_maker.connectors.airtable import AirtableConnector
+        monkeypatch.delenv("AIRTABLE_API_KEY", raising=False)
+        monkeypatch.delenv("AIRTABLE_TOKEN", raising=False)
+        connector = AirtableConnector("airtable://appABC123")
+        with pytest.raises(ValueError, match="AIRTABLE_API_KEY"):
+            connector._get_api_key()
+
+    def test_get_api_key_from_env(self, monkeypatch):
+        from mcp_maker.connectors.airtable import AirtableConnector
+        monkeypatch.setenv("AIRTABLE_API_KEY", "pat_test_token")
+        connector = AirtableConnector("airtable://appABC123")
+        assert connector._get_api_key() == "pat_test_token"
+
+    def test_get_api_key_from_token_env(self, monkeypatch):
+        from mcp_maker.connectors.airtable import AirtableConnector
+        monkeypatch.delenv("AIRTABLE_API_KEY", raising=False)
+        monkeypatch.setenv("AIRTABLE_TOKEN", "pat_fallback_token")
+        connector = AirtableConnector("airtable://appABC123")
+        assert connector._get_api_key() == "pat_fallback_token"
+
+    def test_sanitize_name(self):
+        from mcp_maker.connectors.airtable import _sanitize_name
+        assert _sanitize_name("My Table") == "my_table"
+        assert _sanitize_name("Contacts & Leads") == "contacts_leads"
+        assert _sanitize_name("123_start") == "_123_start"
+        assert _sanitize_name("simple") == "simple"
+        assert _sanitize_name("Hello  World!!") == "hello_world"
+        assert _sanitize_name("  spaces  ") == "spaces"
+
+    def test_validate_missing_pyairtable(self, monkeypatch):
+        from mcp_maker.connectors.airtable import AirtableConnector
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "pyairtable":
+                raise ImportError("No module named 'pyairtable'")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setenv("AIRTABLE_API_KEY", "pat_test")
+        connector = AirtableConnector("airtable://appABC123")
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+        with pytest.raises(ImportError, match="pyairtable"):
+            connector.validate()
+
+    def test_registration(self):
+        from mcp_maker.connectors.base import _CONNECTOR_REGISTRY
+        from mcp_maker.connectors.airtable import AirtableConnector
+        assert _CONNECTOR_REGISTRY.get("airtable") == AirtableConnector
+
+    def test_airtable_type_mapping(self):
+        from mcp_maker.connectors.airtable import AIRTABLE_TYPE_MAP
+        from mcp_maker.core.schema import ColumnType
+        assert AIRTABLE_TYPE_MAP["singleLineText"] == ColumnType.STRING
+        assert AIRTABLE_TYPE_MAP["number"] == ColumnType.FLOAT
+        assert AIRTABLE_TYPE_MAP["checkbox"] == ColumnType.BOOLEAN
+        assert AIRTABLE_TYPE_MAP["dateTime"] == ColumnType.DATETIME
+        assert AIRTABLE_TYPE_MAP["multipleSelects"] == ColumnType.JSON
+        assert AIRTABLE_TYPE_MAP["multipleAttachments"] == ColumnType.JSON
+        assert AIRTABLE_TYPE_MAP["createdBy"] == ColumnType.JSON
+
+    def test_airtable_type_map_completeness(self):
+        """Verify all common Airtable types are mapped."""
+        from mcp_maker.connectors.airtable import AIRTABLE_TYPE_MAP
+        essential_types = [
+            "singleLineText", "multilineText", "email", "url",
+            "number", "currency", "percent", "rating",
+            "checkbox", "date", "dateTime",
+            "singleSelect", "multipleSelects",
+            "multipleRecordLinks", "multipleAttachments",
+            "formula", "rollup", "lookup",
+        ]
+        for t in essential_types:
+            assert t in AIRTABLE_TYPE_MAP, f"Missing type: {t}"
+
+
+# ─── Google Sheets Connector Tests ───
+
+
+class TestGoogleSheetsConnector:
+    def test_source_type(self):
+        from mcp_maker.connectors.gsheets import GoogleSheetsConnector
+        connector = GoogleSheetsConnector("gsheet://abc123def")
+        assert connector.source_type == "gsheet"
+
+    def test_get_spreadsheet_id_from_uri(self):
+        from mcp_maker.connectors.gsheets import GoogleSheetsConnector
+        connector = GoogleSheetsConnector("gsheet://1BxiMVs0XRA5nFMdKvBdBZji")
+        assert connector._get_spreadsheet_id() == "1BxiMVs0XRA5nFMdKvBdBZji"
+
+    def test_get_spreadsheet_id_from_url(self):
+        from mcp_maker.connectors.gsheets import GoogleSheetsConnector
+        url = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5/edit"
+        connector = GoogleSheetsConnector(url)
+        assert connector._get_spreadsheet_id() == "1BxiMVs0XRA5"
+
+    def test_validate_missing_gspread(self, monkeypatch):
+        from mcp_maker.connectors.gsheets import GoogleSheetsConnector
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "gspread":
+                raise ImportError("No module named 'gspread'")
+            return real_import(name, *args, **kwargs)
+
+        connector = GoogleSheetsConnector("gsheet://abc123")
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+        with pytest.raises(ImportError, match="gspread"):
+            connector.validate()
+
+    def test_sanitize_name(self):
+        from mcp_maker.connectors.gsheets import _sanitize_name
+        assert _sanitize_name("Sheet 1") == "sheet_1"
+        assert _sanitize_name("My Data!") == "my_data"
+        assert _sanitize_name("2024 Q1 Revenue") == "_2024_q1_revenue"
+
+    def test_infer_type(self):
+        from mcp_maker.connectors.gsheets import _infer_type
+        from mcp_maker.core.schema import ColumnType
+        assert _infer_type(["hello", "world"]) == ColumnType.STRING
+        assert _infer_type([1, 2, 3]) == ColumnType.INTEGER
+        assert _infer_type([1.5, 2.3]) == ColumnType.FLOAT
+        assert _infer_type(["true", "false"]) == ColumnType.BOOLEAN
+        assert _infer_type([]) == ColumnType.STRING
+
+    def test_registration(self):
+        from mcp_maker.connectors.base import _CONNECTOR_REGISTRY
+        from mcp_maker.connectors.gsheets import GoogleSheetsConnector
+        assert _CONNECTOR_REGISTRY.get("gsheet") == GoogleSheetsConnector
+
+
+# ─── Notion Connector Tests ───
+
+
+class TestNotionConnector:
+    def test_source_type(self):
+        from mcp_maker.connectors.notion import NotionConnector
+        connector = NotionConnector("notion://abc123def456")
+        assert connector.source_type == "notion"
+
+    def test_get_database_ids(self):
+        from mcp_maker.connectors.notion import NotionConnector
+        connector = NotionConnector("notion://abc123")
+        assert connector._get_database_ids() == ["abc123"]
+
+    def test_get_multiple_database_ids(self):
+        from mcp_maker.connectors.notion import NotionConnector
+        connector = NotionConnector("notion://abc123,def456")
+        ids = connector._get_database_ids()
+        assert len(ids) == 2
+        assert "abc123" in ids
+        assert "def456" in ids
+
+    def test_get_api_key_missing(self, monkeypatch):
+        from mcp_maker.connectors.notion import NotionConnector
+        monkeypatch.delenv("NOTION_API_KEY", raising=False)
+        monkeypatch.delenv("NOTION_TOKEN", raising=False)
+        connector = NotionConnector("notion://abc123")
+        with pytest.raises(ValueError, match="NOTION_API_KEY"):
+            connector._get_api_key()
+
+    def test_get_api_key_from_env(self, monkeypatch):
+        from mcp_maker.connectors.notion import NotionConnector
+        monkeypatch.setenv("NOTION_API_KEY", "ntn_test_token")
+        connector = NotionConnector("notion://abc123")
+        assert connector._get_api_key() == "ntn_test_token"
+
+    def test_validate_missing_notion_client(self, monkeypatch):
+        from mcp_maker.connectors.notion import NotionConnector
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "notion_client":
+                raise ImportError("No module named 'notion_client'")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setenv("NOTION_API_KEY", "ntn_test")
+        connector = NotionConnector("notion://abc123")
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+        with pytest.raises(ImportError, match="notion-client"):
+            connector.validate()
+
+    def test_notion_type_mapping(self):
+        from mcp_maker.connectors.notion import NOTION_TYPE_MAP
+        from mcp_maker.core.schema import ColumnType
+        assert NOTION_TYPE_MAP["title"] == ColumnType.STRING
+        assert NOTION_TYPE_MAP["number"] == ColumnType.FLOAT
+        assert NOTION_TYPE_MAP["checkbox"] == ColumnType.BOOLEAN
+        assert NOTION_TYPE_MAP["date"] == ColumnType.DATETIME
+        assert NOTION_TYPE_MAP["multi_select"] == ColumnType.JSON
+        assert NOTION_TYPE_MAP["select"] == ColumnType.STRING
+        assert NOTION_TYPE_MAP["relation"] == ColumnType.JSON
+
+    def test_sanitize_name(self):
+        from mcp_maker.connectors.notion import _sanitize_name
+        assert _sanitize_name("Task Name") == "task_name"
+        assert _sanitize_name("Status (Current)") == "status_current"
+        assert _sanitize_name("123 Items") == "_123_items"
+
+    def test_extract_property_title(self):
+        from mcp_maker.connectors.notion import _extract_property_value
+        prop = {"type": "title", "title": [{"plain_text": "Hello"}]}
+        assert _extract_property_value(prop) == "Hello"
+
+    def test_extract_property_number(self):
+        from mcp_maker.connectors.notion import _extract_property_value
+        prop = {"type": "number", "number": 42}
+        assert _extract_property_value(prop) == 42
+
+    def test_extract_property_checkbox(self):
+        from mcp_maker.connectors.notion import _extract_property_value
+        prop = {"type": "checkbox", "checkbox": True}
+        assert _extract_property_value(prop) is True
+
+    def test_extract_property_select(self):
+        from mcp_maker.connectors.notion import _extract_property_value
+        prop = {"type": "select", "select": {"name": "Active"}}
+        assert _extract_property_value(prop) == "Active"
+
+    def test_extract_property_multi_select(self):
+        from mcp_maker.connectors.notion import _extract_property_value
+        prop = {
+            "type": "multi_select",
+            "multi_select": [{"name": "A"}, {"name": "B"}],
+        }
+        assert _extract_property_value(prop) == ["A", "B"]
+
+    def test_registration(self):
+        from mcp_maker.connectors.base import _CONNECTOR_REGISTRY
+        from mcp_maker.connectors.notion import NotionConnector
+        assert _CONNECTOR_REGISTRY.get("notion") == NotionConnector
+
+
+
