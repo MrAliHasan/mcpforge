@@ -841,6 +841,114 @@ class TestEnvCommand:
         assert "TEST_KEY" not in result
 
 
+# ─── Generated Code Patterns Tests ───
+
+
+class TestGeneratedCodePatterns:
+    """Tests to verify that generated code follows correct patterns."""
+
+    def test_sqlite_uses_raise_on_error(self, sample_db):
+        """Generated SQLite tools should raise RuntimeError, not return error dicts."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = generate_server_code(schema)
+
+        assert 'raise RuntimeError' in code
+        assert 'return {"error"' not in code
+
+    def test_sqlite_write_has_rollback(self, sample_db):
+        """Generated SQLite write tools should call conn.rollback() on error."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = generate_server_code(schema, read_only=False)
+
+        assert "conn.rollback()" in code
+        assert 'raise RuntimeError(f"insert_' in code
+        assert 'raise RuntimeError(f"update_' in code
+        assert 'raise RuntimeError(f"delete_' in code
+
+    def test_postgres_has_connection_pool(self):
+        """Generated Postgres code should use a ThreadedConnectionPool."""
+        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+
+        schema = DataSourceSchema(
+            source_type="postgres",
+            source_uri="postgresql://user:pass@localhost/testdb",
+            tables=[
+                Table(
+                    name="items",
+                    columns=[
+                        Column(name="id", type=ColumnType.INTEGER, primary_key=True),
+                        Column(name="name", type=ColumnType.STRING),
+                    ],
+                    row_count=10,
+                )
+            ],
+        )
+        code = generate_server_code(schema)
+
+        assert "ThreadedConnectionPool" in code
+        assert "_put_connection" in code
+        assert "raise RuntimeError" in code
+        assert 'return {"error"' not in code
+
+    def test_mysql_has_connection_pool(self):
+        """Generated MySQL code should use a queue-based connection pool."""
+        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+
+        schema = DataSourceSchema(
+            source_type="mysql",
+            source_uri="mysql://user:pass@localhost/testdb",
+            tables=[
+                Table(
+                    name="orders",
+                    columns=[
+                        Column(name="id", type=ColumnType.INTEGER, primary_key=True),
+                        Column(name="total", type=ColumnType.FLOAT),
+                    ],
+                    row_count=5,
+                )
+            ],
+            metadata={"host": "localhost", "port": 3306, "user": "root", "password": "", "database": "testdb"},
+        )
+        code = generate_server_code(schema)
+
+        assert "_mysql_pool" in code
+        assert "_put_connection" in code
+        assert "ping(reconnect=True)" in code
+        assert "raise RuntimeError" in code
+        assert 'return {"error"' not in code
+
+    def test_large_schema_cli_warning(self):
+        """CLI should warn when schema has >20 tables."""
+        from typer.testing import CliRunner
+        from mcp_maker.cli import app
+
+        runner = CliRunner()
+
+        # Create a SQLite DB with 25 tables
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
+            db_path = f.name
+
+        try:
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            for i in range(25):
+                conn.execute(f"CREATE TABLE table_{i} (id INTEGER PRIMARY KEY, name TEXT)")
+                conn.execute(f"INSERT INTO table_{i} (name) VALUES ('test')")
+            conn.commit()
+            conn.close()
+
+            result = runner.invoke(app, ["init", f"sqlite:///{db_path}"])
+            assert "Large schema detected" in result.output
+            assert "25 tables" in result.output
+        finally:
+            os.unlink(db_path)
+            # Clean up generated file if it exists
+            if os.path.isfile("mcp_server.py"):
+                os.unlink("mcp_server.py")
+
+
 # ─── Semantic Search Tests ───
 
 
