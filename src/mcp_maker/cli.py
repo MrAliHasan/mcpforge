@@ -149,6 +149,16 @@ def init(
             console.print(f"  Requested: {tables}")
             raise typer.Exit(code=1)
 
+    # Warn about monolithic scaling for large schemas
+    table_count = len(schema.tables)
+    if table_count > 20:
+        tools_per_table = 5 + (3 if read_write else 0) + (2 if semantic else 0)
+        estimated_tools = table_count * tools_per_table
+        console.print()
+        console.print(f"  ⚠️  [yellow]Large schema detected:[/yellow] {table_count} tables → ~{estimated_tools} tools")
+        console.print(f"  [dim]Tip: Use [cyan]--tables users,orders[/cyan] to only include what you need.[/dim]")
+        console.print(f"  [dim]Large tool counts may exceed LLM context windows.[/dim]")
+
     # Print schema summary
     _print_schema_summary(schema)
 

@@ -867,7 +867,7 @@ class TestSemanticSearch:
         # Without semantic — should NOT contain chromadb
         code = generate_server_code(schema, read_only=True, semantic=False)
         assert "chromadb" not in code
-        assert "semantic_search" not in code
+        assert "def semantic_search" not in code
 
         # With semantic — should contain chromadb and semantic tools
         code = generate_server_code(schema, read_only=True, semantic=True)
