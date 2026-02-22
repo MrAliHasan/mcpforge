@@ -18,21 +18,24 @@ TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
 def generate_server_code(
     schema: DataSourceSchema,
-    read_only: bool = True,
+    ops: list[str] = None,
     semantic: bool = False,
 ) -> str:
     """Generate a complete MCP server Python file from a schema.
 
     Args:
         schema: The inspected data source schema.
-        read_only: If True, only generate read tools. If False, also
-            generate insert/update/delete tools.
+        ops: List of allowed operations. Can include 'read', 'insert', 'update', 'delete'.
+            If None, defaults to ['read'].
         semantic: If True, generate semantic (vector) search tools
             using ChromaDB.
 
     Returns:
         A string containing valid Python code for an MCP server.
     """
+    if ops is None:
+        ops = ["read"]
+
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
         autoescape=select_autoescape(),
@@ -48,7 +51,7 @@ def generate_server_code(
         source_uri=schema.source_uri,
         tables=schema.tables,
         resources=schema.resources,
-        read_only=read_only,
+        ops=ops,
         semantic=semantic,
     )
 
@@ -57,22 +60,23 @@ def write_server(
     schema: DataSourceSchema,
     output_dir: str = ".",
     filename: str = "mcp_server.py",
-    read_only: bool = True,
+    ops: list[str] = None,
     semantic: bool = False,
 ) -> str:
-    """Generate and write the MCP server file to disk.
+    """Write generated MCP server code to a file.
 
     Args:
         schema: The inspected data source schema.
         output_dir: Directory to write the server file to.
         filename: Name of the generated server file.
-        read_only: If True, only generate read tools.
+        ops: List of allowed operations. Can include 'read', 'insert', 'update', 'delete'.
+            If None, defaults to ['read'].
         semantic: If True, generate semantic search tools.
 
     Returns:
         The absolute path to the generated file.
     """
-    code = generate_server_code(schema, read_only=read_only, semantic=semantic)
+    code = generate_server_code(schema, ops=ops, semantic=semantic)
     output_path = os.path.join(output_dir, filename)
     os.makedirs(output_dir, exist_ok=True)
 

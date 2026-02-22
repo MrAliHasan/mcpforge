@@ -26,14 +26,43 @@ import csv
 import json
 import os
 {% endif %}
+
+{% if source_type in ["airtable", "notion", "gsheets"] %}
+import time
+import threading
+
+class TokenBucketRateLimiter:
+    """A thread-safe token bucket rate limiter to prevent API 429s from parallel LLM calls."""
+    def __init__(self, target_rps: float, burst_size: int = 1):
+        self._target_rps = target_rps
+        self._capacity = burst_size
+        self._tokens = burst_size
+        self._last_refill = time.monotonic()
+        self._lock = threading.Lock()
+
+    def acquire(self):
+        with self._lock:
+            while True:
+                now = time.monotonic()
+                elapsed = now - self._last_refill
+                if elapsed > 0:
+                    self._tokens = min(self._capacity, self._tokens + elapsed * self._target_rps)
+                    self._last_refill = now
+                
+                if self._tokens >= 1.0:
+                    self._tokens -= 1.0
+                    return
+                time.sleep(0.1)
+
+# Default to 4 requests per second to stay safely under 5 req/s limits
+_rate_limiter = TokenBucketRateLimiter(target_rps=4.0, burst_size=1)
+{% endif %}
+
 from mcp.server.fastmcp import FastMCP
 
 # ─── Server Setup ───
 
-mcp = FastMCP(
-    "{{ source_type }}-server",
-    description="Auto-generated MCP server for {{ source_type }} data source",
-)
+mcp = FastMCP("{{ source_type }}-server")
 
 {% if source_type == "sqlite" %}
 # ─── Database Connection (Thread-Safe) ───
@@ -62,6 +91,8 @@ def _get_connection():
 # ═══════════════════════════════════════════════════════
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
     """List rows from the '{{ table.name }}' table.
@@ -83,10 +114,13 @@ def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
         return [dict(row) for row in cursor.fetchall()]
     except Exception as e:
         raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
+{% endif %}
 
 
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
+
+{% if 'read' in ops %}
 @mcp.tool()
 def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
     """Get a single row from '{{ table.name }}' by its {{ pk.name }}.
@@ -107,11 +141,14 @@ def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.val
         return dict(row) if row else None
     except Exception as e:
         raise RuntimeError(f"get_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+{% endif %}
 
 {% endif %}
 
 {% if table.searchable_columns %}
 {% set search_col = table.searchable_columns[0] %}
+
+{% if 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
     """Search the '{{ table.name }}' table by matching against text columns.
@@ -149,9 +186,12 @@ def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
         return [dict(row) for row in cursor.fetchall()]
     except Exception as e:
         raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
+{% endif %}
 
 {% endif %}
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in the '{{ table.name }}' table.
@@ -165,8 +205,11 @@ def count_{{ table.name }}() -> int:
         return cursor.fetchone()["cnt"]
     except Exception as e:
         raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema (column names and types) of the '{{ table.name }}' table.
@@ -179,11 +222,14 @@ def schema_{{ table.name }}() -> dict:
         "{{ col.name }}": "{{ col.type.value }}",
         {% endfor %}
     }
+{% endif %}
 
-{% if not read_only %}
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 
+
+{% if 'insert' in ops %}
 @mcp.tool()
 def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Insert a new row into the '{{ table.name }}' table.
@@ -213,8 +259,11 @@ def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %
     except Exception as e:
         conn.rollback()
         raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
+{% endif %}
 
 
+
+{% if 'update' in ops %}
 @mcp.tool()
 def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, {% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }} | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
     """Update an existing row in the '{{ table.name }}' table.
@@ -249,8 +298,11 @@ def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
     except Exception as e:
         conn.rollback()
         raise RuntimeError(f"update_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+{% endif %}
 
 
+
+{% if 'delete' in ops %}
 @mcp.tool()
 def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
     """Delete a row from the '{{ table.name }}' table.
@@ -273,6 +325,7 @@ def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
     except Exception as e:
         conn.rollback()
         raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+{% endif %}
 
 {% endif %}
 {% endif %}
@@ -305,6 +358,8 @@ def _put_connection(conn):
 # ═══════════════════════════════════════════════════════
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
     """List rows from the '{{ table.name }}' table.
@@ -328,10 +383,13 @@ def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
         raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
+
+{% if 'read' in ops %}
 @mcp.tool()
 def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
     """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
@@ -349,10 +407,13 @@ def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.val
         raise RuntimeError(f"get_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 {% endif %}
 
 {% if table.searchable_columns %}
+
+{% if 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
     """Search the '{{ table.name }}' table by matching against text columns.
@@ -390,9 +451,12 @@ def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
         raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 {% endif %}
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in the '{{ table.name }}' table."""
@@ -407,8 +471,11 @@ def count_{{ table.name }}() -> int:
         raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema of the '{{ table.name }}' table."""
@@ -417,10 +484,13 @@ def schema_{{ table.name }}() -> dict:
         "{{ col.name }}": "{{ col.type.value }}",
         {% endfor %}
     }
+{% endif %}
 
-{% if not read_only and table.primary_key_columns %}
+{% if ('insert' in ops or 'update' in ops or 'delete' in ops) and table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 
+
+{% if 'insert' in ops %}
 @mcp.tool()
 def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Insert a new row into the '{{ table.name }}' table."""
@@ -450,8 +520,11 @@ def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %
         raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 
+
+{% if 'update' in ops %}
 @mcp.tool()
 def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, {% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }} | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
     """Update an existing row in the '{{ table.name }}' table."""
@@ -485,8 +558,11 @@ def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
         raise RuntimeError(f"update_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 
+
+{% if 'delete' in ops %}
 @mcp.tool()
 def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
     """Delete a row from the '{{ table.name }}' table."""
@@ -506,6 +582,7 @@ def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
         raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 {% endif %}
 {% endfor %}
@@ -557,6 +634,8 @@ def _put_connection(conn):
 # ═══════════════════════════════════════════════════════
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
     """List rows from the '{{ table.name }}' table."""
@@ -575,10 +654,13 @@ def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
         raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
+
+{% if 'read' in ops %}
 @mcp.tool()
 def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
     """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
@@ -596,10 +678,13 @@ def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.val
         raise RuntimeError(f"get_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 {% endif %}
 
 {% if table.searchable_columns %}
+
+{% if 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
     """Search the '{{ table.name }}' table by matching against text columns.
@@ -637,9 +722,12 @@ def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
         raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 {% endif %}
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in the '{{ table.name }}' table."""
@@ -654,8 +742,11 @@ def count_{{ table.name }}() -> int:
         raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema of the '{{ table.name }}' table."""
@@ -664,10 +755,13 @@ def schema_{{ table.name }}() -> dict:
         "{{ col.name }}": "{{ col.type.value }}",
         {% endfor %}
     }
+{% endif %}
 
-{% if not read_only and table.primary_key_columns %}
+{% if ('insert' in ops or 'update' in ops or 'delete' in ops) and table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 
+
+{% if 'insert' in ops %}
 @mcp.tool()
 def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Insert a new row into the '{{ table.name }}' table."""
@@ -697,8 +791,11 @@ def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %
         raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 
+
+{% if 'delete' in ops %}
 @mcp.tool()
 def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
     """Delete a row from the '{{ table.name }}' table."""
@@ -718,6 +815,7 @@ def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
         raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
     finally:
         _put_connection(conn)
+{% endif %}
 
 {% endif %}
 {% endfor %}
@@ -802,6 +900,8 @@ def _to_airtable_{{ table.name }}(data: dict) -> dict:
     return fields
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}(
     limit: int = 50,
@@ -828,8 +928,11 @@ def list_{{ table.name }}(
     records = tbl.all(**kwargs)
     normalized = [_normalize_{{ table.name }}(r) for r in records]
     return normalized[offset:offset + limit]
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def get_{{ table.name }}_by_record_id(record_id: str) -> dict | None:
     """Get a single record from '{{ table.description }}' by its Airtable record ID.
@@ -839,12 +942,17 @@ def get_{{ table.name }}_by_record_id(record_id: str) -> dict | None:
     """
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
     try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
         record = tbl.get(record_id)
         return _normalize_{{ table.name }}(record)
     except Exception:
         return None
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
     """Search '{{ table.description }}' by matching against text fields.
@@ -864,6 +972,7 @@ def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
         if len(results) >= limit:
             break
     return results
+{% endif %}
 
 
 @mcp.tool()
@@ -894,14 +1003,19 @@ def filter_{{ table.name }}(formula: str, limit: int = 100) -> list[dict]:
     return [_normalize_{{ table.name }}(r) for r in records]
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of records in '{{ table.description }}'."""
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
     records = tbl.all(fields=[])
     return len(records)
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema of the '{{ table.description }}' table.
@@ -920,10 +1034,13 @@ def schema_{{ table.name }}() -> dict:
         },
         {% endfor %}
     }
+{% endif %}
 
 
 {% set views = schema.metadata.get('table_views_map', {}).get(table.name, []) %}
 {% if views %}
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}_views() -> list[dict]:
     """List all available views for the '{{ table.description }}' table.
@@ -936,8 +1053,11 @@ def list_{{ table.name }}_views() -> list[dict]:
         {"name": "{{ view.name }}", "airtable_name": "{{ view.original }}", "type": "{{ view.type }}"},
         {% endfor %}
     ]
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}_by_view(view_name: str, limit: int = 100) -> list[dict]:
     """List records from '{{ table.description }}' through a specific Airtable view.
@@ -956,10 +1076,11 @@ def list_{{ table.name }}_by_view(view_name: str, limit: int = 100) -> list[dict
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
     records = tbl.all(view=original_view, max_records=limit)
     return [_normalize_{{ table.name }}(r) for r in records]
+{% endif %}
 
 {% endif %}
 
-{% if not read_only %}
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
 
 @mcp.tool()
 def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
@@ -986,6 +1107,8 @@ def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
     return _normalize_{{ table.name }}(record)
 
 
+
+{% if 'update' in ops %}
 @mcp.tool()
 def update_{{ table.name }}(record_id: str, {% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
     """Update an existing record in '{{ table.description }}'.
@@ -1011,12 +1134,17 @@ def update_{{ table.name }}(record_id: str, {% for col in table.columns %}{{ col
     fields = _to_airtable_{{ table.name }}(data)
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
     try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
         record = tbl.update(record_id, fields)
         return _normalize_{{ table.name }}(record)
     except Exception:
         return None
+{% endif %}
 
 
+
+{% if 'delete' in ops %}
 @mcp.tool()
 def delete_{{ table.name }}(record_id: str) -> dict:
     """Delete a record from '{{ table.description }}'.
@@ -1029,10 +1157,13 @@ def delete_{{ table.name }}(record_id: str) -> dict:
     """
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
     try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
         tbl.delete(record_id)
         return {"deleted": True, "record_id": record_id}
     except Exception as e:
         return {"deleted": False, "record_id": record_id, "error": str(e)}
+{% endif %}
 
 {% endif %}
 {% endfor %}
@@ -1095,6 +1226,8 @@ def _normalize_{{ table.name }}(record: dict, row_index: int = 0) -> dict:
     return result
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
     """List rows from the '{{ table.description }}' Google Sheet.
@@ -1108,8 +1241,11 @@ def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
     records = ws.get_all_records()
     normalized = [_normalize_{{ table.name }}(r, i) for i, r in enumerate(records)]
     return normalized[offset:offset + limit]
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
     """Search the '{{ table.description }}' sheet for matching rows.
@@ -1129,15 +1265,21 @@ def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
         if len(results) >= limit:
             break
     return results
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in '{{ table.description }}'."""
     ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
     return len(ws.get_all_records())
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema of the '{{ table.description }}' sheet."""
@@ -1146,9 +1288,10 @@ def schema_{{ table.name }}() -> dict:
         "{{ col.name }}": {"type": "{{ col.type.value }}", "sheet_header": "{{ col.description }}"},
         {% endfor %}
     }
+{% endif %}
 
 
-{% if not read_only %}
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
 @mcp.tool()
 def append_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Append a new row to the '{{ table.description }}' sheet.
@@ -1175,6 +1318,8 @@ def append_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
     return {"appended": True, "data": data}
 
 
+
+{% if 'update' in ops %}
 @mcp.tool()
 def update_{{ table.name }}_cell(row_number: int, field: str, value: str) -> dict:
     """Update a single cell in '{{ table.description }}'.
@@ -1190,11 +1335,14 @@ def update_{{ table.name }}_cell(row_number: int, field: str, value: str) -> dic
     original_name = _{{ table.name }}_fields[field]
     headers = ws.row_values(1)
     try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
         col_index = headers.index(original_name) + 1
     except ValueError:
         return {"error": f"Header '{original_name}' not found"}
     ws.update_cell(row_number, col_index, value)
     return {"updated": True, "row": row_number, "field": field, "value": value}
+{% endif %}
 
 {% endif %}
 {% endfor %}
@@ -1307,6 +1455,8 @@ def _normalize_{{ table.name }}(page: dict) -> dict:
     return result
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = 50, start_cursor: str | None = None) -> dict:
     """List pages from the '{{ table.description }}' Notion database.
@@ -1329,8 +1479,11 @@ def list_{{ table.name }}(limit: int = 50, start_cursor: str | None = None) -> d
         "next_cursor": response.get("next_cursor"),
         "has_more": response.get("has_more", False),
     }
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def get_{{ table.name }}_by_page_id(page_id: str) -> dict | None:
     """Get a single page from '{{ table.description }}' by its Notion page ID.
@@ -1339,12 +1492,17 @@ def get_{{ table.name }}_by_page_id(page_id: str) -> dict | None:
         page_id: The Notion page ID.
     """
     try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
         page = notion.pages.retrieve(page_id=page_id)
         return _normalize_{{ table.name }}(page)
     except Exception:
         return None
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
     """Search '{{ table.description }}' for matching pages.
@@ -1374,6 +1532,7 @@ def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
         if len(results) >= limit:
             break
     return results
+{% endif %}
 
 
 @mcp.tool()
@@ -1402,6 +1561,8 @@ def filter_{{ table.name }}(property_name: str, value: str) -> list[dict]:
     }
 
     try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
         response = notion.databases.query(
             database_id=DATABASE_IDS["{{ table.name }}"],
             filter=filter_obj,
@@ -1417,6 +1578,8 @@ def filter_{{ table.name }}(property_name: str, value: str) -> list[dict]:
         ]
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of pages in '{{ table.description }}'."""
@@ -1429,8 +1592,11 @@ def count_{{ table.name }}() -> int:
         has_more = result["has_more"]
         cursor = result.get("next_cursor")
     return count
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema of '{{ table.description }}' Notion database.
@@ -1449,9 +1615,10 @@ def schema_{{ table.name }}() -> dict:
         },
         {% endfor %}
     }
+{% endif %}
 
 
-{% if not read_only %}
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
 @mcp.tool()
 def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Create a new page in '{{ table.description }}'.
@@ -1493,6 +1660,8 @@ DATA_DIR = "{{ source_uri }}"
 {% endif %}
 # ═══════════════════════════════════════════════════════
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
     """List records from the '{{ table.name }}' dataset.
@@ -1521,8 +1690,11 @@ def list_{{ table.name }}(limit: int = 50, offset: int = 0) -> list[dict]:
         return [data]
 
     return []
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
     """Search the '{{ table.name }}' dataset for matching records.
@@ -1545,12 +1717,16 @@ def search_{{ table.name }}(query: str, limit: int = 20) -> list[dict]:
         if len(results) >= limit:
             break
     return results
+{% endif %}
 
 
+
+{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of records in the '{{ table.name }}' dataset."""
     return len(list_{{ table.name }}(limit=100000))
+{% endif %}
 
 {% endfor %}
 
@@ -1705,6 +1881,8 @@ def rebuild_index_{{ table.name }}() -> dict:
         Status of the rebuild operation.
     """
     try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
         _chroma_client.delete_collection("{{ table.name }}")
     except Exception:
         pass

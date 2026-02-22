@@ -27,6 +27,25 @@ Your Data Source          MCP-Maker              MCP Server
 └──────────────┘                            Ready for Claude ✅
 ```
 
+## ✨ Why MCP-Maker?
+
+- **Zero-Code Generation**: Instantly maps tables, columns, and APIs into atomic MCP tools. No coding required.
+- **Zero Vendor Lock-In**: The generated `mcp_server.py` file is a 100% standalone, standard Python file built entirely on the official SDK. You can uninstall MCP-Maker immediately after generation and your server will continue to run flawlessly forever.
+- **Granular Security (`--ops`)**: You control exactly what the LLM can do. Explicitly authorize `read`, `insert`, `update`, or `delete` operations.
+- **Auto-Rate Limiting**: Built-in TokenBucket throttling for Cloud APIs (Airtable, Notion, Google Sheets) prevents `429 Too Many Requests` bans when LLMs make aggressive parallel tool calls.
+- **Semantic Vector Search (`--semantic`)**: Automatically spins up a ChromaDB vector database alongside your SQL tables for high-quality, meaning-based search.
+- **Context Window Optimized (`--tables`)**: Only expose the data you actually need to prevent LLM context bloat and hallucination.
+- **Environment Management**: Safely manage API credentials via `mcp-maker env` instead of hardcoding them.
+
+## 🔌 Supercharged Connectors
+
+While basic tools stop at simple SQL tables, MCP-Maker's Connectors are engineered for complex enterprise use cases:
+
+- **Notion**: Supports **Multi-Database URIs** (`notion://DB1,DB2`), automatically parses **20+ property types** (Rollups, Relations, Formulas), handles cursor pagination, and exposes deep `filter` tools.
+- **Airtable**: Generates tools to query via Airtable **Formulas**, target specific **Views**, automatically sorts records, and discovers your Bases directly (`mcp-maker bases`).
+- **Google Sheets**: Treats entire tabs as discrete SQL-like tables, infers column types, and provides pinpoint `update_cell` tools.
+- **PostgreSQL / MySQL**: Detects Primary Keys automatically, maps all complex SQL native types, and fully supports SSL-encrypted TLS connections.
+
 ## Quick Start (2 minutes)
 
 ### Step 1: Install
@@ -122,7 +141,7 @@ pip install mcp-maker[all]
 
 ```bash
 mcp-maker init <source>                    # Generate an MCP server
-mcp-maker init <source> --read-write       # Include write operations
+mcp-maker init <source> --ops read,insert  # Include specific write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic         # Enable vector/semantic search
 mcp-maker serve                            # Run the generated server

@@ -40,7 +40,7 @@ Each guide includes step-by-step setup, authentication, complete examples with s
 
 ```bash
 mcp-maker init <source>                        # Generate an MCP server
-mcp-maker init <source> --read-write           # Include write operations
+mcp-maker init <source> --ops read,insert      # Include specific write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic             # Enable vector/semantic search
 mcp-maker serve                                # Run the generated server
