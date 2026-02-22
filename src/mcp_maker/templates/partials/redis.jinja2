@@ -1,0 +1,344 @@
+# ─── Redis Data Source ───
+
+import redis as _redis_lib
+from urllib.parse import urlparse as _urlparse
+
+_parsed = _urlparse(DATABASE_URL)
+_redis = _redis_lib.Redis(
+    host=_parsed.hostname or "localhost",
+    port=_parsed.port or 6379,
+    db=int(_parsed.path.lstrip("/") or 0),
+    password=_parsed.password or None,
+    ssl=DATABASE_URL.startswith("rediss://"),
+    decode_responses=True,
+)
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Key Group: {{ table.description }}
+# Keys: ~{{ table.row_count }}
+# ═══════════════════════════════════════════════════════
+
+{% set type_info = table.description.split('(')[1].rstrip(')') if '(' in table.description else 'string' %}
+{% set prefix = table.description.split(' (')[0] if ' (' in table.description else table.name %}
+
+{% if type_info == 'string' %}
+{# ─── String Key Tools ─── #}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
+    """List string keys matching '{{ prefix }}:*'.
+
+    Args:
+        pattern: Glob pattern to filter keys (default: '{{ prefix }}:*').
+        limit: Maximum keys to return (max: {{ max_limit }}).
+    """
+    limit = min(limit, {{ max_limit }})
+    keys = []
+    cursor = 0
+    while len(keys) < limit:
+        cursor, batch = _redis.scan(cursor=cursor, match=pattern, count=100)
+        for k in batch:
+            if _redis.type(k) == "string":
+                keys.append(k)
+            if len(keys) >= limit:
+                break
+        if cursor == 0:
+            break
+    results = []
+    for k in keys:
+        results.append({"key": k, "value": _redis.get(k)})
+    return results
+
+@mcp.tool()
+def get_{{ table.name }}(key: str) -> dict:
+    """Get a string value by its key."""
+    value = _redis.get(key)
+    return {"key": key, "value": value, "exists": value is not None}
+
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Count keys matching '{{ prefix }}:*'."""
+    count = 0
+    cursor = 0
+    while True:
+        cursor, batch = _redis.scan(cursor=cursor, match="{{ prefix }}:*", count=100)
+        for k in batch:
+            if _redis.type(k) == "string":
+                count += 1
+        if cursor == 0:
+            break
+    return count
+{% endif %}
+
+{% if 'insert' in ops or 'update' in ops %}
+@mcp.tool()
+def set_{{ table.name }}(key: str, value: str, ttl: int | None = None) -> dict:
+    """Set a string key-value pair.
+
+    Args:
+        key: The key name.
+        value: The string value.
+        ttl: Optional time-to-live in seconds.
+    """
+    if ttl:
+        _redis.setex(key, ttl, value)
+    else:
+        _redis.set(key, value)
+    return {"key": key, "status": "ok"}
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def delete_{{ table.name }}(key: str) -> dict:
+    """Delete a key."""
+    deleted = _redis.delete(key)
+    return {"key": key, "deleted": deleted}
+{% endif %}
+
+{% elif type_info == 'hash' %}
+{# ─── Hash Key Tools ─── #}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
+    """List hash keys matching '{{ prefix }}:*' with all their fields.
+
+    Args:
+        pattern: Glob pattern to filter keys.
+        limit: Maximum keys to return (max: {{ max_limit }}).
+    """
+    limit = min(limit, {{ max_limit }})
+    keys = []
+    cursor = 0
+    while len(keys) < limit:
+        cursor, batch = _redis.scan(cursor=cursor, match=pattern, count=100)
+        for k in batch:
+            if _redis.type(k) == "hash":
+                keys.append(k)
+            if len(keys) >= limit:
+                break
+        if cursor == 0:
+            break
+    results = []
+    for k in keys:
+        data = _redis.hgetall(k)
+        data["key"] = k
+        results.append(data)
+    return results
+
+@mcp.tool()
+def get_{{ table.name }}(key: str) -> dict:
+    """Get all fields of a hash key."""
+    data = _redis.hgetall(key)
+    if not data:
+        return {"key": key, "exists": False}
+    data["key"] = key
+    return data
+
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search hash keys by matching field values."""
+    limit = min(limit, {{ max_limit }})
+    query_lower = query.lower()
+    results = []
+    cursor = 0
+    while len(results) < limit:
+        cursor, batch = _redis.scan(cursor=cursor, match="{{ prefix }}:*", count=100)
+        for k in batch:
+            if _redis.type(k) == "hash":
+                data = _redis.hgetall(k)
+                if any(query_lower in str(v).lower() for v in data.values()):
+                    data["key"] = k
+                    results.append(data)
+                    if len(results) >= limit:
+                        break
+        if cursor == 0:
+            break
+    return results
+
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Count hash keys matching '{{ prefix }}:*'."""
+    count = 0
+    cursor = 0
+    while True:
+        cursor, batch = _redis.scan(cursor=cursor, match="{{ prefix }}:*", count=100)
+        for k in batch:
+            if _redis.type(k) == "hash":
+                count += 1
+        if cursor == 0:
+            break
+    return count
+{% endif %}
+
+{% if 'insert' in ops or 'update' in ops %}
+@mcp.tool()
+def set_{{ table.name }}(key: str, data: dict) -> dict:
+    """Set all fields of a hash key."""
+    _redis.hset(key, mapping=data)
+    return {"key": key, "status": "ok", "fields": len(data)}
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def delete_{{ table.name }}(key: str) -> dict:
+    """Delete a hash key."""
+    deleted = _redis.delete(key)
+    return {"key": key, "deleted": deleted}
+{% endif %}
+
+{% elif type_info == 'list' %}
+{# ─── List Key Tools ─── #}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
+    """List keys containing Redis lists matching '{{ prefix }}:*'."""
+    limit = min(limit, {{ max_limit }})
+    keys = []
+    cursor = 0
+    while len(keys) < limit:
+        cursor, batch = _redis.scan(cursor=cursor, match=pattern, count=100)
+        for k in batch:
+            if _redis.type(k) == "list":
+                keys.append(k)
+            if len(keys) >= limit:
+                break
+        if cursor == 0:
+            break
+    results = []
+    for k in keys:
+        length = _redis.llen(k)
+        values = _redis.lrange(k, 0, min(99, length - 1))
+        results.append({"key": k, "values": values, "length": length})
+    return results
+
+@mcp.tool()
+def get_{{ table.name }}(key: str, start: int = 0, stop: int = -1) -> dict:
+    """Get elements from a Redis list."""
+    values = _redis.lrange(key, start, stop)
+    return {"key": key, "values": values, "length": _redis.llen(key)}
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def push_{{ table.name }}(key: str, value: str, side: str = "right") -> dict:
+    """Push a value to a Redis list.
+
+    Args:
+        key: The list key.
+        value: Value to push.
+        side: 'left' or 'right' (default: 'right').
+    """
+    if side == "left":
+        length = _redis.lpush(key, value)
+    else:
+        length = _redis.rpush(key, value)
+    return {"key": key, "new_length": length}
+{% endif %}
+
+{% elif type_info == 'set' %}
+{# ─── Set Key Tools ─── #}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
+    """List Redis set keys matching '{{ prefix }}:*'."""
+    limit = min(limit, {{ max_limit }})
+    keys = []
+    cursor = 0
+    while len(keys) < limit:
+        cursor, batch = _redis.scan(cursor=cursor, match=pattern, count=100)
+        for k in batch:
+            if _redis.type(k) == "set":
+                keys.append(k)
+            if len(keys) >= limit:
+                break
+        if cursor == 0:
+            break
+    results = []
+    for k in keys:
+        members = list(_redis.smembers(k))
+        results.append({"key": k, "members": members, "cardinality": len(members)})
+    return results
+
+@mcp.tool()
+def get_{{ table.name }}(key: str) -> dict:
+    """Get all members of a Redis set."""
+    members = list(_redis.smembers(key))
+    return {"key": key, "members": members, "cardinality": len(members)}
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def add_{{ table.name }}(key: str, member: str) -> dict:
+    """Add a member to a Redis set."""
+    added = _redis.sadd(key, member)
+    return {"key": key, "added": added, "cardinality": _redis.scard(key)}
+{% endif %}
+
+{% elif type_info == 'zset' %}
+{# ─── Sorted Set Key Tools ─── #}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
+    """List Redis sorted set keys matching '{{ prefix }}:*'."""
+    limit = min(limit, {{ max_limit }})
+    keys = []
+    cursor = 0
+    while len(keys) < limit:
+        cursor, batch = _redis.scan(cursor=cursor, match=pattern, count=100)
+        for k in batch:
+            if _redis.type(k) == "zset":
+                keys.append(k)
+            if len(keys) >= limit:
+                break
+        if cursor == 0:
+            break
+    results = []
+    for k in keys:
+        members = _redis.zrange(k, 0, 99, withscores=True)
+        results.append({
+            "key": k,
+            "members_with_scores": [{"member": m, "score": s} for m, s in members],
+            "cardinality": _redis.zcard(k),
+        })
+    return results
+
+@mcp.tool()
+def get_{{ table.name }}(key: str, start: int = 0, stop: int = -1) -> dict:
+    """Get members of a sorted set with their scores."""
+    members = _redis.zrange(key, start, stop, withscores=True)
+    return {
+        "key": key,
+        "members_with_scores": [{"member": m, "score": s} for m, s in members],
+        "cardinality": _redis.zcard(key),
+    }
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def add_{{ table.name }}(key: str, member: str, score: float) -> dict:
+    """Add a member with a score to a sorted set."""
+    added = _redis.zadd(key, {member: score})
+    return {"key": key, "added": added, "cardinality": _redis.zcard(key)}
+{% endif %}
+
+{% endif %}
+
+{% endfor %}
+
+{# ─── Redis Info Tool (always generated) ─── #}
+
+@mcp.tool()
+def redis_info() -> dict:
+    """Get Redis server info and key statistics."""
+    info = _redis.info(section="keyspace")
+    return {
+        "db_size": _redis.dbsize(),
+        "keyspace": {k: str(v) for k, v in info.items()},
+    }

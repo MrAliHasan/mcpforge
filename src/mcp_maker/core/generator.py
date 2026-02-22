@@ -52,6 +52,7 @@ def generate_server_code(
     ssl_enabled: bool = True,
     auth_mode: str = "none",
     async_mode: bool = False,
+    cache_ttl: int = 0,
 ) -> tuple[str, str]:
     """Generate complete MCP server Python code from a schema.
 
@@ -92,6 +93,7 @@ def generate_server_code(
         "ssl_enabled": ssl_enabled,
         "auth_mode": auth_mode,
         "async_mode": async_mode,
+        "cache_ttl": cache_ttl,
     }
 
     server_template = env.get_template("server.py.jinja2")
@@ -138,6 +140,7 @@ def write_server(
     ssl_enabled: bool = True,
     auth_mode: str = "none",
     async_mode: bool = False,
+    cache_ttl: int = 0,
 ) -> tuple[str, str, bool]:
     """Write generated MCP server files.
 
@@ -164,6 +167,7 @@ def write_server(
         ssl_enabled=ssl_enabled,
         auth_mode=auth_mode,
         async_mode=async_mode,
+        cache_ttl=cache_ttl,
     )
 
     server_code_formatted = format_and_verify_code(server_code, filename)

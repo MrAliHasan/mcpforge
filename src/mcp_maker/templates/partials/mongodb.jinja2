@@ -1,0 +1,120 @@
+# ─── MongoDB Data Source ───
+
+from pymongo import MongoClient
+from bson import ObjectId
+from urllib.parse import urlparse
+
+_parsed = urlparse(DATABASE_URL)
+_db_name = _parsed.path.lstrip("/")
+
+_client = MongoClient(DATABASE_URL)
+_db = _client[_db_name]
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Collection: {{ table.name }}
+# Fields: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Documents: ~{{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List documents from the '{{ table.name }}' collection.
+
+    Args:
+        limit: Maximum documents to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of documents to skip for pagination.
+    """
+    limit = min(limit, {{ max_limit }})
+    cursor = _db["{{ table.name }}"].find().skip(offset).limit(limit)
+    results = []
+    for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        results.append(doc)
+    return results
+
+@mcp.tool()
+def get_{{ table.name }}_by_id(id: str) -> dict | None:
+    """Get a single document from '{{ table.name }}' by its _id."""
+    try:
+        doc = _db["{{ table.name }}"].find_one({"_id": ObjectId(id)})
+    except Exception:
+        doc = _db["{{ table.name }}"].find_one({"_id": id})
+    if doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.name }}' collection using text matching on string fields."""
+    limit = min(limit, {{ max_limit }})
+    # Build $or query across string fields
+    conditions = []
+    {% for col in table.columns %}
+    {% if col.type.value == 'string' and col.name != '_id' %}
+    conditions.append({"{{ col.name }}": {"$regex": query, "$options": "i"}})
+    {% endif %}
+    {% endfor %}
+    if not conditions:
+        return []
+    cursor = _db["{{ table.name }}"].find({"$or": conditions}).limit(limit)
+    results = []
+    for doc in cursor:
+        doc["_id"] = str(doc["_id"])
+        results.append(doc)
+    return results
+
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the estimated number of documents in '{{ table.name }}'."""
+    return _db["{{ table.name }}"].estimated_document_count()
+
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the field names and inferred types for '{{ table.name }}'."""
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def insert_{{ table.name }}(data: dict) -> dict:
+    """Insert a new document into '{{ table.name }}'."""
+    data.pop("_id", None)  # Let MongoDB generate _id
+    result = _db["{{ table.name }}"].insert_one(data)
+    return {"inserted_id": str(result.inserted_id)}
+{% endif %}
+
+{% if 'update' in ops %}
+@mcp.tool()
+def update_{{ table.name }}_by_id(id: str, data: dict) -> dict:
+    """Update a document in '{{ table.name }}' by its _id."""
+    data.pop("_id", None)
+    try:
+        oid = ObjectId(id)
+    except Exception:
+        oid = id
+    result = _db["{{ table.name }}"].update_one({"_id": oid}, {"$set": data})
+    return {"matched": result.matched_count, "modified": result.modified_count}
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def delete_{{ table.name }}_by_id(id: str) -> dict:
+    """Delete a document from '{{ table.name }}' by its _id."""
+    try:
+        oid = ObjectId(id)
+    except Exception:
+        oid = id
+    result = _db["{{ table.name }}"].delete_one({"_id": oid})
+    return {"deleted": result.deleted_count}
+{% endif %}
+
+{% endfor %}

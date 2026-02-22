@@ -25,6 +25,7 @@ mcp = FastMCP("sqlite-server")
 
 
 
+
 # ─── Database Connection (Thread-Safe) ───
 
 DB_PATH = DATABASE_URL
@@ -33,7 +34,7 @@ if DB_PATH and DB_PATH.startswith("sqlite:///"):
 elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpxuy5v6wv.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp4vreyng9.db"
 
 _local = threading.local()
 

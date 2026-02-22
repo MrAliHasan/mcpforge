@@ -4,6 +4,7 @@ from .main import app, console
 from . import generator
 from . import server
 from . import environment
+from . import deploy
 
 # Internal helpers re-exported for backwards compatibility with tests
 from .server import _get_claude_config_path

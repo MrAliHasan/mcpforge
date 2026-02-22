@@ -1,0 +1,89 @@
+# ─── REST API Data Source (OpenAPI) ───
+
+import httpx
+import os
+
+BASE_URL = "{{ schema.metadata.get('base_url', '') }}"
+
+# Persistent HTTP client for connection pooling
+_http_client = httpx.Client(
+    base_url=BASE_URL,
+    timeout=30.0,
+    headers={
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    },
+)
+
+# Load API key/token from environment if available
+_API_TOKEN = os.environ.get("API_TOKEN", os.environ.get("API_KEY", ""))
+if _API_TOKEN:
+    _http_client.headers["Authorization"] = f"Bearer {_API_TOKEN}"
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Endpoint: {{ table.description }}
+# {{ table.columns | selectattr('name', 'equalto', '_method') | map(attribute='description') | first }} {{ table.columns | selectattr('name', 'equalto', '_path') | map(attribute='description') | first }}
+# ═══════════════════════════════════════════════════════
+
+{% set method_col = table.columns | selectattr('name', 'equalto', '_method') | first %}
+{% set path_col = table.columns | selectattr('name', 'equalto', '_path') | first %}
+{% set path_params = table.columns | selectattr('description', 'equalto', 'path param') | list %}
+{% set query_params = table.columns | selectattr('description', 'equalto', 'query param') | list %}
+{% set body_fields = table.columns | selectattr('description', 'equalto', 'body field') | list %}
+
+@mcp.tool()
+def {{ table.name }}(
+    {%- for param in path_params %}
+    {{ param.name }}: {{ 'int' if param.type.value == 'integer' else ('float' if param.type.value == 'float' else ('bool' if param.type.value == 'boolean' else 'str')) }}{{ '' if not param.nullable else ' | None = None' }},
+    {%- endfor %}
+    {%- for param in query_params %}
+    {{ param.name }}: {{ 'int' if param.type.value == 'integer' else ('float' if param.type.value == 'float' else ('bool' if param.type.value == 'boolean' else 'str')) }} | None = None,
+    {%- endfor %}
+    {%- for field in body_fields %}
+    {{ field.name }}: {{ 'int' if field.type.value == 'integer' else ('float' if field.type.value == 'float' else ('bool' if field.type.value == 'boolean' else ('dict' if field.type.value == 'json' else 'str'))) }} | None = None,
+    {%- endfor %}
+) -> dict:
+    """{{ table.description }}
+
+    {{ method_col.description }} {{ path_col.description }}
+    """
+    # Build path with path parameters
+    path = "{{ path_col.description }}"
+    {% for param in path_params %}
+    path = path.replace("{{ '{' ~ param.name ~ '}' }}", str({{ param.name }}))
+    {% endfor %}
+
+    # Build query parameters
+    params = {}
+    {% for param in query_params %}
+    if {{ param.name }} is not None:
+        params["{{ param.name }}"] = {{ param.name }}
+    {% endfor %}
+
+    {% if body_fields %}
+    # Build request body
+    body = {}
+    {% for field in body_fields %}
+    if {{ field.name }} is not None:
+        body["{{ field.name }}"] = {{ field.name }}
+    {% endfor %}
+    {% endif %}
+
+    response = _http_client.request(
+        method="{{ method_col.description }}",
+        url=path,
+        params=params or None,
+        {% if body_fields %}
+        json=body or None,
+        {% endif %}
+    )
+    response.raise_for_status()
+
+    try:
+        return response.json()
+    except Exception:
+        return {"status": response.status_code, "body": response.text[:500]}
+
+{% endfor %}

@@ -1,0 +1,136 @@
+# ─── Supabase Data Source ───
+
+import os
+from supabase import create_client
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY", os.environ.get("SUPABASE_ANON_KEY", ""))
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError(
+        "SUPABASE_URL and SUPABASE_KEY environment variables are required. "
+        "Find them in your Supabase dashboard under Settings > API."
+    )
+
+_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Table: {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: ~{{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List rows from the '{{ table.name }}' table.
+
+    Args:
+        limit: Maximum rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of rows to skip for pagination.
+    """
+    limit = min(limit, {{ max_limit }})
+    result = _supabase.table("{{ table.name }}").select("*").range(offset, offset + limit - 1).execute()
+    return result.data
+
+{% if table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+@mcp.tool()
+def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
+    """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
+    result = _supabase.table("{{ table.name }}").select("*").eq("{{ pk.name }}", {{ pk.name }}).limit(1).execute()
+    return result.data[0] if result.data else None
+{% endif %}
+
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.name }}' table using text matching (ILIKE)."""
+    limit = min(limit, {{ max_limit }})
+    q = _supabase.table("{{ table.name }}").select("*")
+    {% for col in table.searchable_columns %}
+    {% if col.type.value == 'string' %}
+    q = q.or_("{{ col.name }}.ilike.%{query}%".replace("{query}", query))
+    {% endif %}
+    {% endfor %}
+    result = q.limit(limit).execute()
+    return result.data
+
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of rows in '{{ table.name }}'."""
+    result = _supabase.table("{{ table.name }}").select("*", count="exact").limit(0).execute()
+    return result.count or 0
+
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the column names and types for '{{ table.name }}'."""
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def insert_{{ table.name }}(data: dict) -> dict:
+    """Insert a new row into '{{ table.name }}'."""
+    result = _supabase.table("{{ table.name }}").insert(data).execute()
+    return result.data[0] if result.data else {}
+{% endif %}
+
+{% if 'update' in ops and table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+@mcp.tool()
+def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, data: dict) -> dict:
+    """Update a row in '{{ table.name }}' by its {{ pk.name }}."""
+    result = _supabase.table("{{ table.name }}").update(data).eq("{{ pk.name }}", {{ pk.name }}).execute()
+    return result.data[0] if result.data else {}
+{% endif %}
+
+{% if 'delete' in ops and table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+@mcp.tool()
+def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
+    """Delete a row from '{{ table.name }}' by its {{ pk.name }}."""
+    result = _supabase.table("{{ table.name }}").delete().eq("{{ pk.name }}", {{ pk.name }}).execute()
+    return {"deleted": len(result.data)}
+{% endif %}
+
+{% endfor %}
+
+# ─── Supabase Auth Tools ───
+
+@mcp.tool()
+def supabase_auth_list_users(limit: int = 50) -> list[dict]:
+    """List Supabase Auth users (requires service role key)."""
+    try:
+        result = _supabase.auth.admin.list_users()
+        users = [{"id": str(u.id), "email": u.email, "created_at": str(u.created_at)} for u in result[:limit]]
+        return users
+    except Exception as e:
+        raise RuntimeError(f"Failed to list auth users (requires service_role key): {e}") from e
+
+# ─── Supabase Storage Tools ───
+
+@mcp.tool()
+def supabase_storage_list_buckets() -> list[dict]:
+    """List all storage buckets in the Supabase project."""
+    try:
+        buckets = _supabase.storage.list_buckets()
+        return [{"id": b.id, "name": b.name, "public": b.public} for b in buckets]
+    except Exception as e:
+        raise RuntimeError(f"Failed to list storage buckets: {e}") from e
+
+@mcp.tool()
+def supabase_storage_list_files(bucket: str, path: str = "") -> list[dict]:
+    """List files in a Supabase storage bucket."""
+    try:
+        files = _supabase.storage.from_(bucket).list(path)
+        return [{"name": f["name"], "id": f.get("id", "")} for f in files]
+    except Exception as e:
+        raise RuntimeError(f"Failed to list files in bucket '{bucket}': {e}") from e

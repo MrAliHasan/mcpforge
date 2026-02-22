@@ -1,0 +1,87 @@
+# ─── Excel Data Source ───
+
+import openpyxl
+
+EXCEL_PATH = DATABASE_URL
+if EXCEL_PATH and EXCEL_PATH.startswith("excel:///"):
+    EXCEL_PATH = EXCEL_PATH[len("excel:///"):]
+elif EXCEL_PATH and EXCEL_PATH.startswith("excel://"):
+    EXCEL_PATH = EXCEL_PATH[len("excel://"):]
+
+# Pre-load all sheets into memory for fast tool access
+_wb = openpyxl.load_workbook(EXCEL_PATH, read_only=True, data_only=True)
+_EXCEL_DATA = {}
+
+{% for table in tables %}
+_sheet = _wb["{{ table.description }}"]
+_rows = list(_sheet.iter_rows(values_only=True))
+_headers = [str(h).strip() if h is not None else f"col_{i}" for i, h in enumerate(_rows[0])] if _rows else []
+_EXCEL_DATA["{{ table.name }}"] = [
+    {_headers[j]: (v if v is not None else "") for j, v in enumerate(row)}
+    for row in _rows[1:]
+    if any(v is not None for v in row)
+]
+{% endfor %}
+
+_wb.close()
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Sheet: {{ table.description }} → {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List rows from the '{{ table.description }}' sheet.
+
+    Args:
+        limit: Maximum rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of rows to skip for pagination.
+    """
+    limit = min(limit, {{ max_limit }})
+    data = _EXCEL_DATA.get("{{ table.name }}", [])
+    return data[offset:offset + limit]
+{% endif %}
+
+{% if table.searchable_columns and 'read' in ops %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.description }}' sheet by text matching."""
+    limit = min(limit, {{ max_limit }})
+    query_lower = query.lower()
+    results = []
+    for row in _EXCEL_DATA.get("{{ table.name }}", []):
+        for v in row.values():
+            if query_lower in str(v).lower():
+                results.append(row)
+                break
+        if len(results) >= limit:
+            break
+    return results
+{% endif %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of rows in the '{{ table.description }}' sheet."""
+    return len(_EXCEL_DATA.get("{{ table.name }}", []))
+{% endif %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the column names and types for the '{{ table.description }}' sheet."""
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
+{% endif %}
+
+{% endfor %}

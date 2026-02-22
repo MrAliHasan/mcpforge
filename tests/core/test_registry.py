@@ -41,4 +41,4 @@ class TestConnectorRegistry:
 
     def test_get_connector_unknown(self):
         with pytest.raises(ValueError, match="No connector found"):
-            get_connector("mongodb://localhost/test")
+            get_connector("ftp://localhost/test")

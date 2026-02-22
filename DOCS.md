@@ -25,6 +25,11 @@ Each guide includes step-by-step setup, authentication, complete examples with s
 | **Airtable** | [docs/airtable.md](docs/airtable.md) | Formula filtering, views, sorting, base discovery, CRUD |
 | **Google Sheets** | [docs/google-sheets.md](docs/google-sheets.md) | GCP service account setup, sheet tabs as tables, cell updates |
 | **Notion** | [docs/notion.md](docs/notion.md) | Integration setup, multi-DB support, cursor pagination, 20+ property types |
+| **Excel** | [docs/excel.md](docs/excel.md) | .xlsx files, sheets as tables, auto type inference |
+| **MongoDB** | [docs/mongodb.md](docs/mongodb.md) | Collection inspection, document sampling, full CRUD |
+| **Supabase** | [docs/supabase.md](docs/supabase.md) | Built on Postgres, auth/storage tools, PostgREST |
+| **REST API** | [docs/openapi.md](docs/openapi.md) | OpenAPI/Swagger specs, one tool per endpoint |
+| **Redis** | [docs/redis.md](docs/redis.md) | Key grouping, type-aware tools (string/hash/list/set/zset) |
 
 ### Feature Guides
 
@@ -45,10 +50,14 @@ mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic             # Enable vector/semantic search
 mcp-maker init <source> --audit                # Enable structured JSON audit logging
 mcp-maker init <source> --auth api-key         # Require MCP_API_KEY for access
-mcp-maker init <source> --async                # Generate async tools (aiosqlite/asyncpg/aiomysql)
+mcp-maker init <source> --async                # Generate async tools
+mcp-maker init <source> --cache 60              # Cache read results for 60 seconds
 mcp-maker init <source> --no-ssl               # Disable SSL/TLS enforcement (local dev only)
 mcp-maker init <source> --force                # Skip schema change warnings on re-generation
 mcp-maker init <source> --consolidate-threshold 20 # Consolidate tools for large schemas
+mcp-maker deploy --platform railway            # Generate Railway deployment files
+mcp-maker deploy --platform render             # Generate Render deployment files
+mcp-maker deploy --platform fly                # Generate Fly.io deployment files
 mcp-maker serve                                # Run the generated server
 mcp-maker inspect <source>                     # Dry run — preview what would be generated
 mcp-maker inspect <source> --tables users      # Preview filtered schema
@@ -120,6 +129,10 @@ notion://DB_ID_1,DB_ID_2              # Notion (multiple DBs)
 | `GOOGLE_SERVICE_ACCOUNT_FILE` | Google Sheets | `/path/to/credentials.json` |
 | `GOOGLE_CREDENTIALS_JSON` | Google Sheets (alt) | `'{"type":"service_account",...}'` |
 | `NOTION_API_KEY` | Notion | `ntn_xxxxxxxxxxxx` |
+| `SUPABASE_URL` | Supabase | `https://your-project.supabase.co` |
+| `SUPABASE_KEY` | Supabase | `eyJhbG...` (anon or service_role key) |
+| `API_TOKEN` | OpenAPI/REST | Bearer token for API authentication |
+| `REDIS_URL` | Redis | `redis://localhost:6379/0` |
 | `MCP_API_KEY` | Auth middleware (`--auth api-key`) | Any secret string |
 
 ---
@@ -179,15 +192,7 @@ Use --force to suppress this warning.
 
 ## Coming Soon
 
-### 🥈 High Impact
-- **One-Command Deploy** — `mcp-maker deploy` → push to Railway/Render/Fly.io
-- **REST API Connector** — Pass an OpenAPI/Swagger spec, auto-generate MCP tools
-- **Excel (.xlsx) Connector** — Point at `.xlsx` files, auto-detect sheets as tables
-- **MongoDB Connector** — `mcp-maker init mongodb://...`
-- **Supabase Connector** — Built on Postgres but adds Supabase auth/storage tools
-
 ### 🥉 Polish & Power
-- **Smart Caching** — Cache API responses to reduce calls and speed up queries
 - **Relationship Detection** — Auto-detect foreign keys, generate join tools
 - **Web Dashboard** — `mcp-maker ui` → browser-based management
 - **Multi-Source Servers** — Combine sources: `mcp-maker init sqlite:///users.db airtable://appXXX`

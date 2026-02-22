@@ -46,6 +46,31 @@ def _load_connectors():
     except ImportError:
         pass
 
+    try:
+        from mcp_maker.connectors import excel  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from mcp_maker.connectors import mongodb  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from mcp_maker.connectors import supabase  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from mcp_maker.connectors import openapi  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from mcp_maker.connectors import redis_connector  # noqa: F401
+    except ImportError:
+        pass
+
 def _print_schema_summary(schema):
     """Pretty-print a schema summary using Rich."""
     if schema.tables:
@@ -154,6 +179,11 @@ def init(
         False,
         "--async",
         help="Generate async tools using aiosqlite/asyncpg/aiomysql.",
+    ),
+    cache: int = typer.Option(
+        0,
+        "--cache",
+        help="Enable smart caching with TTL in seconds (e.g., --cache 60). 0 = disabled.",
     ),
 ):
     """⚒️  Generate an MCP server from a data source.
@@ -279,6 +309,7 @@ def init(
             ssl_enabled=not no_ssl,
             auth_mode=auth,
             async_mode=async_mode,
+            cache_ttl=cache,
         )
 
     # Generate .env.example with placeholder (never embed real credentials)

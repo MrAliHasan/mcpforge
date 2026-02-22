@@ -93,6 +93,12 @@ def get_connector(uri: str) -> BaseConnector:
             "airtable": "pip install mcp-maker[airtable]",
             "gsheets": "pip install mcp-maker[gsheets]",
             "notion": "pip install mcp-maker[notion]",
+            "excel": "pip install mcp-maker[excel]",
+            "mongodb": "pip install mcp-maker[mongodb]",
+            "supabase": "pip install mcp-maker[supabase]",
+            "openapi": "pip install mcp-maker[openapi]",
+            "redis": "pip install mcp-maker[redis]",
+            "rediss": "pip install mcp-maker[redis]",
         }
         if scheme in hints:
             raise ValueError(f"Missing dependencies for {scheme}. Please install them: {hints[scheme]}")
@@ -108,6 +114,9 @@ def get_connector(uri: str) -> BaseConnector:
         if ext in (".db", ".sqlite", ".sqlite3"):
             if "sqlite" in _CONNECTOR_REGISTRY:
                 return _CONNECTOR_REGISTRY["sqlite"](f"sqlite:///{uri}")
+        if ext in (".xlsx", ".xlsm", ".xltx", ".xltm"):
+            if "excel" in _CONNECTOR_REGISTRY:
+                return _CONNECTOR_REGISTRY["excel"](f"excel:///{uri}")
 
     raise ValueError(
         f"No connector found for URI: {uri}\n"

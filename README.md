@@ -121,6 +121,11 @@ That's it. Your AI can now query your data.
 | Airtable | [docs/airtable.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/airtable.md) — Formulas, views, sorting, CRUD |
 | Google Sheets | [docs/google-sheets.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/google-sheets.md) — GCP service account setup |
 | Notion | [docs/notion.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/notion.md) — Integration setup, multi-DB support |
+| Excel | [docs/excel.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/excel.md) — .xlsx files, sheets as tables |
+| MongoDB | [docs/mongodb.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/mongodb.md) — Document sampling, full CRUD |
+| Supabase | [docs/supabase.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/supabase.md) — Auth/storage tools, PostgREST |
+| REST API | [docs/openapi.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/openapi.md) — OpenAPI/Swagger specs |
+| Redis | [docs/redis.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/redis.md) — Key grouping, type-aware tools |
 
 ### Feature Guides
 
@@ -130,7 +135,7 @@ That's it. Your AI can now query your data.
 
 ---
 
-## 🔌 Supported Connectors (7)
+## 🔌 Supported Connectors (12)
 
 | Connector | URI Format | Auth Required | Install |
 |-----------|-----------|-------------|---------|
@@ -141,6 +146,11 @@ That's it. Your AI can now query your data.
 | Airtable | `airtable://appXXXX` | ✅ API key | `pip install mcp-maker[airtable]` |
 | Google Sheets | `gsheet://SPREADSHEET_ID` | ✅ Service acct | `pip install mcp-maker[gsheets]` |
 | Notion | `notion://DATABASE_ID` | ✅ Integration | `pip install mcp-maker[notion]` |
+| Excel | `./data.xlsx` or `excel:///path.xlsx` | ❌ | `pip install mcp-maker[excel]` |
+| MongoDB | `mongodb://user:pass@host/db` | ✅ DB creds | `pip install mcp-maker[mongodb]` |
+| Supabase | `supabase://PROJECT_REF` | ✅ API key | `pip install mcp-maker[supabase]` |
+| REST API | `openapi:///path/to/spec.yaml` | ✅ API token | `pip install mcp-maker[openapi]` |
+| Redis | `redis://host:6379/0` | ✅ Password | `pip install mcp-maker[redis]` |
 
 Install all connectors at once:
 
@@ -160,9 +170,13 @@ mcp-maker init <source> --semantic         # Enable vector/semantic search
 mcp-maker init <source> --audit            # Enable structured JSON audit logging
 mcp-maker init <source> --auth api-key     # Require MCP_API_KEY for access
 mcp-maker init <source> --async            # Generate async tools (aiosqlite/asyncpg)
+mcp-maker init <source> --cache 60          # Cache read results for 60 seconds
 mcp-maker init <source> --no-ssl           # Disable SSL for local development
 mcp-maker init <source> --force            # Skip schema change warnings
 mcp-maker init <source> --consolidate-threshold 10 # Consolidate large schemas
+mcp-maker deploy --platform railway        # Generate deployment files
+mcp-maker deploy --platform render         # Render deployment
+mcp-maker deploy --platform fly            # Fly.io deployment
 mcp-maker serve                            # Run the generated server
 mcp-maker inspect <source>                 # Preview what would be generated (dry run)
 mcp-maker config --install                 # Auto-write Claude Desktop config
@@ -199,6 +213,13 @@ pip install mcp-maker[semantic]
 pip install mcp-maker[async-sqlite]    # aiosqlite
 pip install mcp-maker[async-postgres]  # asyncpg
 pip install mcp-maker[async-mysql]     # aiomysql
+
+# New connectors
+pip install mcp-maker[excel]           # Excel (.xlsx)
+pip install mcp-maker[mongodb]         # MongoDB
+pip install mcp-maker[supabase]        # Supabase
+pip install mcp-maker[openapi]         # REST API (OpenAPI specs)
+pip install mcp-maker[redis]           # Redis
 
 # All connectors + semantic search + async
 pip install mcp-maker[all]
