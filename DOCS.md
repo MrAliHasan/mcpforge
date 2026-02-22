@@ -33,14 +33,57 @@ Each guide includes step-by-step setup, authentication, complete examples with s
 ### CLI Commands
 
 ```bash
-mcp-maker init <source>            # Generate an MCP server
-mcp-maker init <source> --read-write  # Include write operations
-mcp-maker serve                    # Run the generated server
-mcp-maker inspect <source>         # Dry run — preview what would be generated
-mcp-maker config                   # Show Claude Desktop config JSON
-mcp-maker config --install         # Auto-write Claude Desktop config
-mcp-maker list-connectors          # Show available connectors
-mcp-maker bases                    # Discover Airtable bases
+mcp-maker init <source>                        # Generate an MCP server
+mcp-maker init <source> --read-write           # Include write operations
+mcp-maker init <source> --tables users,orders  # Only include specific tables
+mcp-maker serve                                # Run the generated server
+mcp-maker inspect <source>                     # Dry run — preview what would be generated
+mcp-maker inspect <source> --tables users      # Preview filtered schema
+mcp-maker config                               # Show Claude Desktop config JSON
+mcp-maker config --install                     # Auto-write Claude Desktop config
+mcp-maker env set KEY VALUE                    # Store API key in .env
+mcp-maker env list                             # List stored keys (masked)
+mcp-maker env show KEY                         # Show actual key value
+mcp-maker env delete KEY                       # Remove a key
+mcp-maker list-connectors                      # Show available connectors
+mcp-maker bases                                # Discover Airtable bases
+```
+
+### Schema Filtering
+
+For large databases with many tables, use `--tables` to only generate tools for what you need:
+
+```bash
+# 50-table database but you only need 3
+mcp-maker init postgres://user:pass@host/db --tables users,orders,products
+
+# Preview what would be included
+mcp-maker inspect postgres://user:pass@host/db --tables users
+```
+
+### Environment Variable Management
+
+Store API keys safely in a `.env` file instead of hardcoding or exporting:
+
+```bash
+# Store your keys
+mcp-maker env set AIRTABLE_API_KEY pat_xxxxxxxxxxxx
+mcp-maker env set NOTION_API_KEY ntn_xxxxxxxxxxxx
+mcp-maker env set GOOGLE_SERVICE_ACCOUNT_FILE ./credentials.json
+
+# View stored keys (values are masked)
+mcp-maker env list
+# ┌─────────────────────────────┬────────────────┬─────────────────────────────┐
+# │ Variable                    │ Value (masked) │ Description                 │
+# ├─────────────────────────────┼────────────────┼─────────────────────────────┤
+# │ AIRTABLE_API_KEY            │ pat_xx...xxxx  │ Airtable API key (PAT)      │
+# │ NOTION_API_KEY              │ ntn_xx...xxxx  │ Notion integration secret   │
+# └─────────────────────────────┴────────────────┴─────────────────────────────┘
+
+# Load into your shell
+source .env
+
+# Or add to Claude Desktop config env section
 ```
 
 ### Connector URIs
@@ -85,6 +128,7 @@ notion://DB_ID_1,DB_ID_2              # Notion (multiple DBs)
 ## Coming Soon
 
 ### 🥈 High Impact
+- **Semantic Search (Vector)** — Point at PDFs or Postgres, spin up ChromaDB/pgvector for "search by meaning" tools
 - **One-Command Deploy** — `mcp-maker deploy` → push to Railway/Render/Fly.io
 - **REST API Connector** — Pass an OpenAPI/Swagger spec, auto-generate MCP tools
 - **Excel (.xlsx) Connector** — Point at `.xlsx` files, auto-detect sheets as tables
@@ -97,3 +141,4 @@ notion://DB_ID_1,DB_ID_2              # Notion (multiple DBs)
 - **`mcp-maker upgrade`** — Re-inspect and update without overwriting customizations
 - **Web Dashboard** — `mcp-maker ui` → browser-based management
 - **Multi-Source Servers** — Combine sources: `mcp-maker init sqlite:///users.db airtable://appXXX`
+

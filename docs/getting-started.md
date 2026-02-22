@@ -316,6 +316,132 @@ If auto-config doesn't work, do it manually:
 
 ---
 
+## Schema Filtering
+
+For large databases with many tables, use `--tables` to only include specific tables:
+
+```bash
+# Database has 50 tables, but you only need 3
+mcp-maker init postgres://user:pass@host/db --tables users,orders,products
+```
+
+Output:
+
+```
+⚒️ MCP-Maker                                         v0.2.2
+
+  ✅ Connected to postgres source
+  📋 Filtered: keeping 3 of 50 tables (47 skipped)
+
+  ┌────────────────────────────────────────────────────────┐
+  │ 📊 Discovered Tables (3)                              │
+  ├──────────┬──────────────────────────┬──────┬───────────┤
+  │ Table    │ Columns                  │ Rows │ PK        │
+  ├──────────┼──────────────────────────┼──────┼───────────┤
+  │ users    │ id, name, email, ...     │ 5000 │ id        │
+  │ orders   │ id, user_id, total, ...  │15000 │ id        │
+  │ products │ id, name, price, ...     │  200 │ id        │
+  └──────────┴──────────────────────────┴──────┴───────────┘
+
+  🎉 Generated: mcp_server.py
+```
+
+This keeps the generated server small and focused. The AI won't be overwhelmed with 50+ tools it doesn't need.
+
+**Preview without generating:**
+
+```bash
+mcp-maker inspect postgres://user:pass@host/db --tables users,orders
+```
+
+**Combine with write mode:**
+
+```bash
+mcp-maker init sqlite:///big.db --tables contacts,invoices --read-write
+```
+
+---
+
+## Environment Variable Management
+
+Instead of manually exporting API keys or hardcoding them, use `mcp-maker env` to safely manage them:
+
+### Store your keys
+
+```bash
+mcp-maker env set AIRTABLE_API_KEY pat_xxxxxxxxxxxxxxxxxxxx
+mcp-maker env set NOTION_API_KEY ntn_xxxxxxxxxxxxxxxxxxxx
+mcp-maker env set GOOGLE_SERVICE_ACCOUNT_FILE ./credentials.json
+```
+
+Output:
+
+```
+🔐 Environment Manager                               v0.2.2
+
+  ✅ Set: AIRTABLE_API_KEY = pat_xx...xxxx
+  📁 Saved to: .env
+  💡 Airtable API key (Personal Access Token)
+
+  To use in your shell:
+    source .env
+
+  To use in Claude Desktop config, add to env:
+    "AIRTABLE_API_KEY": "pat_xx...xxxx"
+```
+
+### List stored keys (values are masked)
+
+```bash
+mcp-maker env list
+```
+
+```
+🔐 Environment Variables (.env)
+┌─────────────────────────────┬────────────────┬──────────────────────────────────────┐
+│ Variable                    │ Value (masked) │ Description                          │
+├─────────────────────────────┼────────────────┼──────────────────────────────────────┤
+│ AIRTABLE_API_KEY            │ pat_xx...xxxx  │ Airtable API key (Personal Access Token) │
+│ GOOGLE_SERVICE_ACCOUNT_FILE │ ./cre...json   │ Path to Google service account JSON file │
+│ NOTION_API_KEY              │ ntn_xx...xxxx  │ Notion integration secret            │
+└─────────────────────────────┴────────────────┴──────────────────────────────────────┘
+```
+
+### Other actions
+
+```bash
+mcp-maker env show AIRTABLE_API_KEY    # Show actual value (unmasked)
+mcp-maker env delete NOTION_API_KEY    # Remove a key
+```
+
+### Using with Claude Desktop
+
+After storing your keys, load them before running:
+
+```bash
+source .env
+mcp-maker serve
+```
+
+Or add them directly to your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "/usr/bin/python3",
+      "args": ["/path/to/mcp_server.py"],
+      "env": {
+        "AIRTABLE_API_KEY": "pat_xxxxxxxxxxxx",
+        "NOTION_API_KEY": "ntn_xxxxxxxxxxxx"
+      }
+    }
+  }
+}
+```
+
+---
+
 ## Next Steps
 
 Choose your connector guide:

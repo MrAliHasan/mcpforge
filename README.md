@@ -76,6 +76,8 @@ That's it. Your AI can now query your data.
 
 **👉 [Getting Started Guide](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/getting-started.md)** — Tutorial, installation, first server, Claude Desktop setup
 
+**📋 [Full Reference (DOCS.md)](https://github.com/MrAliHasan/mcp-maker/blob/main/DOCS.md)** — CLI commands, schema filtering, env management, architecture, roadmap
+
 ### Connector Guides (with step-by-step setup, examples, and troubleshooting)
 
 | Connector | Guide |
@@ -113,14 +115,16 @@ pip install mcp-maker[all]
 ## CLI Commands
 
 ```bash
-mcp-maker init <source>        # Generate an MCP server
-mcp-maker init <source> --read-write  # Include write operations
-mcp-maker serve                # Run the generated server
-mcp-maker inspect <source>     # Preview what would be generated (dry run)
-mcp-maker config               # Show Claude Desktop config
-mcp-maker config --install     # Auto-write Claude Desktop config
-mcp-maker list-connectors      # Show available connectors
-mcp-maker bases                # Discover Airtable bases
+mcp-maker init <source>                    # Generate an MCP server
+mcp-maker init <source> --read-write       # Include write operations
+mcp-maker init <source> --tables users,orders  # Only include specific tables
+mcp-maker serve                            # Run the generated server
+mcp-maker inspect <source>                 # Preview what would be generated (dry run)
+mcp-maker config --install                 # Auto-write Claude Desktop config
+mcp-maker env set KEY VALUE                # Store API keys safely in .env
+mcp-maker env list                         # List stored keys (masked)
+mcp-maker list-connectors                  # Show available connectors
+mcp-maker bases                            # Discover Airtable bases
 ```
 
 ---

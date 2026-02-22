@@ -741,4 +741,101 @@ class TestNotionConnector:
         assert _CONNECTOR_REGISTRY.get("notion") == NotionConnector
 
 
+# ─── Schema Filtering Tests ───
 
+
+class TestSchemaFiltering:
+    def test_filter_tables_by_name(self):
+        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+
+        schema = DataSourceSchema(
+            source_type="sqlite",
+            source_uri="test",
+            tables=[
+                Table(name="users", columns=[Column(name="id", type=ColumnType.INTEGER)]),
+                Table(name="orders", columns=[Column(name="id", type=ColumnType.INTEGER)]),
+                Table(name="products", columns=[Column(name="id", type=ColumnType.INTEGER)]),
+                Table(name="reviews", columns=[Column(name="id", type=ColumnType.INTEGER)]),
+            ]
+        )
+
+        # Simulate --tables filtering
+        wanted = {"users", "orders"}
+        schema.tables = [t for t in schema.tables if t.name.lower() in wanted]
+
+        assert len(schema.tables) == 2
+        assert schema.tables[0].name == "users"
+        assert schema.tables[1].name == "orders"
+
+    def test_filter_tables_case_insensitive(self):
+        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+
+        schema = DataSourceSchema(
+            source_type="sqlite",
+            source_uri="test",
+            tables=[
+                Table(name="Users", columns=[Column(name="id", type=ColumnType.INTEGER)]),
+                Table(name="ORDERS", columns=[Column(name="id", type=ColumnType.INTEGER)]),
+            ]
+        )
+
+        wanted = {t.strip().lower() for t in "users,orders".split(",")}
+        schema.tables = [t for t in schema.tables if t.name.lower() in wanted]
+        assert len(schema.tables) == 2
+
+
+# ─── Env Command Tests ───
+
+
+class TestEnvCommand:
+    def test_env_read_write(self, tmp_path):
+        from mcp_maker.cli import _env_read, _env_write
+
+        env_file = str(tmp_path / ".env")
+        env_vars = {"KEY1": "value1", "KEY2": "value2"}
+        _env_write(env_file, env_vars)
+
+        result = _env_read(env_file)
+        assert result["KEY1"] == "value1"
+        assert result["KEY2"] == "value2"
+
+    def test_env_read_nonexistent(self, tmp_path):
+        from mcp_maker.cli import _env_read
+
+        result = _env_read(str(tmp_path / "nope.env"))
+        assert result == {}
+
+    def test_env_read_with_quotes(self, tmp_path):
+        from mcp_maker.cli import _env_read
+
+        env_file = str(tmp_path / ".env")
+        with open(env_file, "w") as f:
+            f.write('KEY1="quoted value"\n')
+            f.write("KEY2='single quoted'\n")
+            f.write("# comment line\n")
+            f.write("KEY3=plain\n")
+
+        result = _env_read(env_file)
+        assert result["KEY1"] == "quoted value"
+        assert result["KEY2"] == "single quoted"
+        assert result["KEY3"] == "plain"
+
+    def test_mask_value(self):
+        from mcp_maker.cli import _mask_value
+
+        assert _mask_value("short") == "****"
+        assert _mask_value("pat_xxxxxxxxxxxxxxxxxxxx") == "pat_xx...xxxx"
+        assert "..." in _mask_value("ntn_xxxxxxxxxxxx")
+
+    def test_env_set_and_delete(self, tmp_path):
+        from mcp_maker.cli import _env_read, _env_set, _env_delete
+
+        env_file = str(tmp_path / ".env")
+        _env_set(env_file, "TEST_KEY", "test_value")
+
+        result = _env_read(env_file)
+        assert result["TEST_KEY"] == "test_value"
+
+        _env_delete(env_file, "TEST_KEY")
+        result = _env_read(env_file)
+        assert "TEST_KEY" not in result
