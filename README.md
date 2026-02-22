@@ -90,6 +90,12 @@ That's it. Your AI can now query your data.
 | Google Sheets | [docs/google-sheets.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/google-sheets.md) — GCP service account setup |
 | Notion | [docs/notion.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/notion.md) — Integration setup, multi-DB support |
 
+### Feature Guides
+
+| Feature | Guide |
+|---------|-------|
+| Semantic Search | [docs/semantic-search.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/semantic-search.md) — ChromaDB vector search, search by meaning |
+
 ---
 
 ## 🔌 Supported Connectors (7)
@@ -118,6 +124,7 @@ pip install mcp-maker[all]
 mcp-maker init <source>                    # Generate an MCP server
 mcp-maker init <source> --read-write       # Include write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
+mcp-maker init <source> --semantic         # Enable vector/semantic search
 mcp-maker serve                            # Run the generated server
 mcp-maker inspect <source>                 # Preview what would be generated (dry run)
 mcp-maker config --install                 # Auto-write Claude Desktop config
@@ -147,7 +154,10 @@ pip install mcp-maker[gsheets]
 # With Notion support
 pip install mcp-maker[notion]
 
-# All connectors
+# With semantic search (ChromaDB vector search)
+pip install mcp-maker[semantic]
+
+# All connectors + semantic search
 pip install mcp-maker[all]
 
 # Development

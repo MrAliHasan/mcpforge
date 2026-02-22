@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-maker"
-version = "0.2.2"
+version = "0.2.1"
 description = "Auto-generate MCP servers from any data source. Zero code required."
 readme = "README.md"
 license = "MIT"
@@ -37,7 +37,8 @@ mysql = ["pymysql>=1.1.0"]
 airtable = ["pyairtable>=2.0.0"]
 gsheets = ["gspread>=6.0.0"]
 notion = ["notion-client>=2.0.0"]
-all = ["mcp-maker[postgres,mysql,airtable,gsheets,notion]"]
+semantic = ["chromadb>=0.5.0"]
+all = ["mcp-maker[postgres,mysql,airtable,gsheets,notion,semantic]"]
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0"]
 
 [project.scripts]

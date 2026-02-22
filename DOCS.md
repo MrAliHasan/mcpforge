@@ -26,6 +26,12 @@ Each guide includes step-by-step setup, authentication, complete examples with s
 | **Google Sheets** | [docs/google-sheets.md](docs/google-sheets.md) | GCP service account setup, sheet tabs as tables, cell updates |
 | **Notion** | [docs/notion.md](docs/notion.md) | Integration setup, multi-DB support, cursor pagination, 20+ property types |
 
+### Feature Guides
+
+| Feature | Guide | Key Features |
+|---------|-------|-------------|
+| **Semantic Search** | [docs/semantic-search.md](docs/semantic-search.md) | ChromaDB vector search, search by meaning, works with all connectors |
+
 ---
 
 ## Quick Reference
@@ -36,6 +42,7 @@ Each guide includes step-by-step setup, authentication, complete examples with s
 mcp-maker init <source>                        # Generate an MCP server
 mcp-maker init <source> --read-write           # Include write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
+mcp-maker init <source> --semantic             # Enable vector/semantic search
 mcp-maker serve                                # Run the generated server
 mcp-maker inspect <source>                     # Dry run — preview what would be generated
 mcp-maker inspect <source> --tables users      # Preview filtered schema
@@ -128,7 +135,6 @@ notion://DB_ID_1,DB_ID_2              # Notion (multiple DBs)
 ## Coming Soon
 
 ### 🥈 High Impact
-- **Semantic Search (Vector)** — Point at PDFs or Postgres, spin up ChromaDB/pgvector for "search by meaning" tools
 - **One-Command Deploy** — `mcp-maker deploy` → push to Railway/Render/Fly.io
 - **REST API Connector** — Pass an OpenAPI/Swagger spec, auto-generate MCP tools
 - **Excel (.xlsx) Connector** — Point at `.xlsx` files, auto-detect sheets as tables

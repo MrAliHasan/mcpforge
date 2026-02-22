@@ -89,6 +89,11 @@ def init(
         "--tables", "-t",
         help="Comma-separated list of table names to include (default: all). Example: --tables users,orders",
     ),
+    semantic: bool = typer.Option(
+        False,
+        "--semantic",
+        help="Generate semantic (vector) search tools using ChromaDB. Requires: pip install mcp-maker[semantic]",
+    ),
 ):
     """⚒️  Generate an MCP server from a data source.
 
@@ -98,6 +103,7 @@ def init(
         mcp-maker init postgres://user:pass@localhost/mydb
         mcp-maker init sqlite:///my.db --read-write
         mcp-maker init sqlite:///my.db --tables users,orders
+        mcp-maker init sqlite:///my.db --semantic
     """
     _load_connectors()
     from .connectors.base import get_connector
@@ -154,12 +160,15 @@ def init(
             output_dir=output,
             filename=filename,
             read_only=read_only,
+            semantic=semantic,
         )
 
     console.print()
     console.print(f"  🎉 Generated: [bold green]{output_path}[/bold green]")
     if read_write:
         console.print("  📝 [yellow]Write operations enabled[/yellow] (INSERT, UPDATE, DELETE)")
+    if semantic:
+        console.print("  🧠 [magenta]Semantic search enabled[/magenta] (ChromaDB vector search)")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
     console.print(f"    [cyan]mcp-maker serve[/cyan]           — Run the server")

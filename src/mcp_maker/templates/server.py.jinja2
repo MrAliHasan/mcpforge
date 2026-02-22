@@ -1461,7 +1461,158 @@ def read_{{ resource.name | replace('-', '_') | replace(' ', '_') }}() -> str:
 {% endfor %}
 {% endif %}
 
+{% if semantic %}
+# ─── Semantic Search (ChromaDB Vector Search) ───
+
+import chromadb
+from chromadb.config import Settings as ChromaSettings
+
+_chroma_client = chromadb.PersistentClient(
+    path=".chroma",
+    settings=ChromaSettings(anonymized_telemetry=False),
+)
+
+def _get_text_for_record(record: dict) -> str:
+    """Combine all text fields of a record into a single searchable string."""
+    parts = []
+    for key, value in record.items():
+        if value is not None and isinstance(value, str) and value.strip():
+            parts.append(f"{key}: {value}")
+        elif value is not None and not isinstance(value, (bytes, bytearray)):
+            parts.append(f"{key}: {value}")
+    return " | ".join(parts)
+
+{% for table in tables %}
+# ─── Semantic Index: {{ table.name }} ───
+
+def _build_index_{{ table.name }}():
+    """Build or update the semantic index for '{{ table.name }}'."""
+    collection = _chroma_client.get_or_create_collection(
+        name="{{ table.name }}",
+        metadata={"hnsw:space": "cosine"},
+    )
+    # Skip if already populated
+    if collection.count() > 0:
+        return collection
+
+    # Fetch all records
+    {% if source_type == "sqlite" %}
+    conn = sqlite3.connect("{{ source_uri.replace('sqlite:///', '') }}")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.execute("SELECT * FROM {{ table.name }}")
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    {% elif source_type == "files" %}
+    rows = list_{{ table.name }}(limit=100000)
+    {% elif source_type in ("postgres", "postgresql") %}
+    conn = psycopg2.connect("{{ source_uri }}")
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
+    cursor.execute("SELECT * FROM {{ table.name }}")
+    rows = cursor.fetchall()
+    conn.close()
+    {% elif source_type == "mysql" %}
+    conn = pymysql.connect(
+        host=_parsed.hostname, port=_parsed.port or 3306,
+        user=_parsed.username, password=_parsed.password,
+        database=_parsed.path.lstrip("/"),
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM {{ table.name }}")
+    rows = cursor.fetchall()
+    conn.close()
+    {% elif source_type == "airtable" %}
+    rows = list_{{ table.name }}(limit=100000)
+    {% elif source_type == "gsheet" %}
+    rows = list_{{ table.name }}(limit=100000)
+    {% elif source_type == "notion" %}
+    rows = list_{{ table.name }}(limit=100000).get("results", [])
+    {% endif %}
+
+    if not rows:
+        return collection
+
+    # Embed in batches of 100
+    batch_size = 100
+    for i in range(0, len(rows), batch_size):
+        batch = rows[i:i + batch_size]
+        documents = [_get_text_for_record(row) for row in batch]
+        ids = [f"{{ table.name }}_{i + j}" for j in range(len(batch))]
+        metadatas = []
+        for row in batch:
+            meta = {}
+            for k, v in row.items():
+                if v is not None and not isinstance(v, (bytes, bytearray, list, dict)):
+                    meta[str(k)] = str(v)[:500]
+            metadatas.append(meta)
+        collection.add(documents=documents, ids=ids, metadatas=metadatas)
+
+    return collection
+
+
+@mcp.tool()
+def semantic_search_{{ table.name }}(query: str, limit: int = 10) -> list[dict]:
+    """Search '{{ table.name }}' by meaning using vector similarity.
+
+    Unlike keyword search, this finds results based on semantic meaning.
+    For example, searching 'artificial intelligence' will also find
+    records about 'machine learning', 'deep learning', etc.
+
+    Args:
+        query: Natural language search query.
+        limit: Maximum number of results (default: 10).
+
+    Returns:
+        A list of matching records ranked by relevance, each with a
+        'similarity_score' field (0-1, higher = more relevant).
+    """
+    collection = _build_index_{{ table.name }}()
+    if collection.count() == 0:
+        return []
+
+    results = collection.query(
+        query_texts=[query],
+        n_results=min(limit, collection.count()),
+    )
+
+    output = []
+    for i in range(len(results["ids"][0])):
+        record = dict(results["metadatas"][0][i]) if results["metadatas"][0][i] else {}
+        distance = results["distances"][0][i] if results["distances"] else None
+        # Convert cosine distance to similarity score (0-1)
+        record["similarity_score"] = round(1 - distance, 4) if distance is not None else None
+        record["_document"] = results["documents"][0][i][:200] if results["documents"] else ""
+        output.append(record)
+
+    return output
+
+
+@mcp.tool()
+def rebuild_index_{{ table.name }}() -> dict:
+    """Force rebuild the semantic search index for '{{ table.name }}'.
+
+    Use this if the underlying data has changed and the search index
+    is out of date. This will delete and recreate the vector index.
+
+    Returns:
+        Status of the rebuild operation.
+    """
+    try:
+        _chroma_client.delete_collection("{{ table.name }}")
+    except Exception:
+        pass
+    collection = _build_index_{{ table.name }}()
+    return {
+        "status": "rebuilt",
+        "table": "{{ table.name }}",
+        "indexed_records": collection.count(),
+    }
+
+{% endfor %}
+{% endif %}
+
 # ─── Run Server ───
 
 if __name__ == "__main__":
     mcp.run()
+
