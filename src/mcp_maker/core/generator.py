@@ -5,12 +5,20 @@ Takes a DataSourceSchema and produces a complete, runnable MCP server
 Python file using FastMCP (part of the official mcp SDK).
 """
 
+import ast
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from rich.console import Console
 
 from .schema import DataSourceSchema
+
+# Template directory
+TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
+console = Console()
 
 # Template directory
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
@@ -22,20 +30,15 @@ def generate_server_code(
     semantic: bool = False,
     default_limit: int = 50,
     max_limit: int = 500,
-) -> str:
-    """Generate a complete MCP server Python file from a schema.
-
-    Args:
-        schema: The inspected data source schema.
-        ops: List of allowed operations. Can include 'read', 'insert', 'update', 'delete'.
-            If None, defaults to ['read'].
-        semantic: If True, generate semantic (vector) search tools
-            using ChromaDB.
-        default_limit: Default number of records to return for list tools.
-        max_limit: Maximum number of records allowed per request.
+    target_filename: str = "mcp_server.py",
+    autogen_module: str = "_autogen_tools",
+    audit: bool = False,
+    consolidate_threshold: int = 20,
+) -> tuple[str, str]:
+    """Generate complete MCP server Python code from a schema.
 
     Returns:
-        A string containing valid Python code for an MCP server.
+        A tuple of (server_code, autogen_code).
     """
     if ops is None:
         ops = ["read"]
@@ -47,19 +50,55 @@ def generate_server_code(
         lstrip_blocks=True,
     )
 
-    template = env.get_template("server.py.jinja2")
+    consolidate = False
+    if len(schema.tables) > consolidate_threshold:
+        consolidate = True
 
-    return template.render(
-        schema=schema,
-        source_type=schema.source_type,
-        source_uri=schema.source_uri,
-        tables=schema.tables,
-        resources=schema.resources,
-        ops=ops,
-        semantic=semantic,
-        default_limit=default_limit,
-        max_limit=max_limit,
-    )
+    context = {
+        "schema": schema,
+        "source_type": schema.source_type,
+        "source_uri": schema.source_uri,
+        "tables": schema.tables,
+        "resources": schema.resources,
+        "ops": ops,
+        "semantic": semantic,
+        "default_limit": default_limit,
+        "max_limit": max_limit,
+        "target_filename": target_filename,
+        "autogen_module": autogen_module,
+        "audit": audit,
+        "consolidate": consolidate,
+    }
+
+    server_template = env.get_template("server.py.jinja2")
+    autogen_template = env.get_template("_autogen.py.jinja2")
+
+    server_code = server_template.render(**context)
+    autogen_code = autogen_template.render(**context)
+
+    return server_code, autogen_code
+
+
+def format_and_verify_code(code: str, filename: str) -> str:
+    """Verify code syntax using AST, and format it using Black if available."""
+    try:
+        ast.parse(code)
+    except SyntaxError as e:
+        console.print(f"\n[bold red]SyntaxError in generated code for {filename}:[/bold red] {e}")
+        console.print("[dim]This may be caused by complex schemas. Please report this issue.[/dim]")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "black", "-", "-q"],
+            input=code,
+            text=True,
+            capture_output=True,
+            check=True
+        )
+        return result.stdout
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        console.print(f"  [dim]⚠️  Warning: `black` formatter not found or failed. Code for {filename} is not auto-formatted.[/dim]")
+        return code
 
 
 def write_server(
@@ -70,29 +109,47 @@ def write_server(
     semantic: bool = False,
     default_limit: int = 50,
     max_limit: int = 500,
-) -> str:
-    """Write generated MCP server code to a file.
+    audit: bool = False,
+    consolidate_threshold: int = 20,
+) -> tuple[str, str, bool]:
+    """Write generated MCP server files.
 
-    Args:
-        schema: The inspected data source schema.
-        output_dir: Directory to write the server file to.
-        filename: Name of the generated server file.
-        ops: List of allowed operations. Can include 'read', 'insert', 'update', 'delete'.
-            If None, defaults to ['read'].
-        semantic: If True, generate semantic search tools.
-        default_limit: Default number of records to return for list tools.
-        max_limit: Maximum number of records allowed per request.
+    Generates `server.py` (only if it doesn't exist) and `_autogen_tools.py` (always overwritten).
 
     Returns:
-        The absolute path to the generated file.
+        Tuple of (server_file_path, autogen_file_path, server_file_created).
     """
-    code = generate_server_code(
-        schema, ops=ops, semantic=semantic, default_limit=default_limit, max_limit=max_limit
+    # Compute safe module name
+    base_name = os.path.splitext(filename)[0]
+    autogen_module = f"_autogen_{base_name}"
+    autogen_filename = f"{autogen_module}.py"
+
+    server_code, autogen_code = generate_server_code(
+        schema, 
+        ops=ops, 
+        semantic=semantic, 
+        default_limit=default_limit, 
+        max_limit=max_limit,
+        target_filename=filename,
+        autogen_module=autogen_module,
+        audit=audit,
+        consolidate_threshold=consolidate_threshold,
     )
-    output_path = os.path.join(output_dir, filename)
+
+    server_codeFormatted = format_and_verify_code(server_code, filename)
+    autogen_codeFormatted = format_and_verify_code(autogen_code, autogen_filename)
+
     os.makedirs(output_dir, exist_ok=True)
+    server_path = os.path.join(output_dir, filename)
+    autogen_path = os.path.join(output_dir, autogen_filename)
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(code)
+    server_created = False
+    if not os.path.exists(server_path):
+        with open(server_path, "w", encoding="utf-8") as f:
+            f.write(server_codeFormatted)
+        server_created = True
 
-    return os.path.abspath(output_path)
+    with open(autogen_path, "w", encoding="utf-8") as f:
+        f.write(autogen_codeFormatted)
+
+    return os.path.abspath(server_path), os.path.abspath(autogen_path), server_created

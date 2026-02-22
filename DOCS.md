@@ -43,6 +43,8 @@ mcp-maker init <source>                        # Generate an MCP server
 mcp-maker init <source> --ops read,insert      # Include specific write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic             # Enable vector/semantic search
+mcp-maker init <source> --audit                # Enable structured JSON audit logging
+mcp-maker init <source> --consolidate-threshold 20 # Consolidate tools for large schemas
 mcp-maker serve                                # Run the generated server
 mcp-maker inspect <source>                     # Dry run — preview what would be generated
 mcp-maker inspect <source> --tables users      # Preview filtered schema
@@ -121,14 +123,16 @@ notion://DB_ID_1,DB_ID_2              # Notion (multiple DBs)
 
 ```
 1. INSPECT              2. GENERATE             3. SERVE
-┌───────────────┐    ┌──────────────────┐    ┌──────────────┐
-│ Connector     │    │ Jinja2 Template  │    │ Generated    │
-│ inspects your │───▶│ renders a full   │───▶│ Python file  │
-│ data source   │    │ MCP server file  │    │ runs as MCP  │
-└───────────────┘    └──────────────────┘    └──────────────┘
+┌───────────────┐    ┌──────────────────┐    ┌─────────────────────────┐
+│ Connector     │    │ Jinja2 Templates │    │ 📄 mcp_server.py        │
+│ inspects your │───▶│ render dual      │───▶│   ↳ Add custom tools    │
+│ data source   │    │ MCP files        │    │                         │
+└───────────────┘    └──────────────────┘    │ ⚙️ _autogen_mcp_server.py │
+                                             │   ↳ list_users()        │
+                                             └─────────────────────────┘
 ```
 
-**Key point:** The generated `mcp_server.py` is **standalone** — it doesn't import `mcp-maker`. You can uninstall MCP-Maker after generation and the server keeps working.
+**Key point:** The generated `mcp_server.py` is **standalone** and **non-destructive** — it doesn't import `mcp-maker`, and regenerating the server safely updates only the `_autogen_` file. Your custom tools are never overwritten. You can uninstall MCP-Maker after generation and the server keeps working!
 
 ---
 
@@ -144,7 +148,6 @@ notion://DB_ID_1,DB_ID_2              # Notion (multiple DBs)
 ### 🥉 Polish & Power
 - **Smart Caching** — Cache API responses to reduce calls and speed up queries
 - **Relationship Detection** — Auto-detect foreign keys, generate join tools
-- **`mcp-maker upgrade`** — Re-inspect and update without overwriting customizations
 - **Web Dashboard** — `mcp-maker ui` → browser-based management
 - **Multi-Source Servers** — Combine sources: `mcp-maker init sqlite:///users.db airtable://appXXX`
 

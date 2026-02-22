@@ -125,6 +125,16 @@ def init(
         "--max-limit",
         help="Maximum number of records allowed per request.",
     ),
+    audit: bool = typer.Option(
+        False,
+        "--audit",
+        help="Enable structured audit logging for all tool executions.",
+    ),
+    consolidate_threshold: int = typer.Option(
+        20,
+        "--consolidate-threshold",
+        help="Threshold of tables before switching to consolidated generic tools instead of per-table tools.",
+    ),
 ):
     """⚒️  Generate an MCP server from a data source.
 
@@ -203,7 +213,7 @@ def init(
 
     # Step 4: Generate server
     with console.status("[bold green]Generating MCP server..."):
-        output_path = write_server(
+        server_path, autogen_path, server_created = write_server(
             schema,
             output_dir=output,
             filename=filename,
@@ -211,10 +221,25 @@ def init(
             semantic=semantic,
             default_limit=default_limit,
             max_limit=max_limit,
+            audit=audit,
+            consolidate_threshold=consolidate_threshold,
         )
 
+    # Generate .env.example
+    env_example_path = os.path.join(output, ".env.example")
+    with open(env_example_path, "w") as f:
+        f.write("# Copy this file to .env and fill in the values\n")
+        f.write(f"DATABASE_URL='{schema.source_uri}'\n")
+
     console.print()
-    console.print(f"  🎉 Generated: [bold green]{output_path}[/bold green]")
+    if server_created:
+        console.print(f"  🎉 Created: [bold green]{server_path}[/bold green] (Safe to edit)")
+    else:
+        console.print(f"  ⏭️  Skipped: [bold yellow]{server_path}[/bold yellow] (Already exists, preserving customizations)")
+    
+    console.print(f"  ♻️  Updated: [bold cyan]{autogen_path}[/bold cyan] (Auto-generated tools)")
+    console.print(f"  🔐 Created: [bold cyan]{env_example_path}[/bold cyan]")
+    
     console.print(f"  🔧 [yellow]Operations enabled:[/yellow] {', '.join(op.upper() for op in parsed_ops)}")
     if semantic:
         console.print("  🧠 [magenta]Semantic search enabled[/magenta] (ChromaDB vector search)")

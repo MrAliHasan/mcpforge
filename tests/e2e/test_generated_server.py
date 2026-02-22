@@ -51,19 +51,20 @@ async def test_generated_server_execution(sample_e2e_db, monkeypatch):
     # 2. Generate
     with tempfile.TemporaryDirectory() as tmpdir:
         server_file = "mcp_server_e2e.py"
-        code_path = write_server(
+        server_path, autogen_path, server_created = write_server(
             schema,
             output_dir=tmpdir,
             filename=server_file,
             ops=["read", "insert", "update", "delete"]
         )
 
-        assert os.path.exists(code_path)
+        assert os.path.exists(server_path)
+        assert os.path.exists(autogen_path)
 
         # 3. Dynamically import the generated server module
         sys.path.insert(0, tmpdir)
         try:
-            spec = importlib.util.spec_from_file_location("mcp_server_e2e", code_path)
+            spec = importlib.util.spec_from_file_location("_autogen_mcp_server_e2e", autogen_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 

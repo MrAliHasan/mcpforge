@@ -30,7 +30,7 @@ class TestCodeGenerator:
     def test_generate_sqlite_server(self, sample_db):
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
 
         # Should be valid Python
         compile(code, "<generated>", "exec")
@@ -49,7 +49,7 @@ class TestCodeGenerator:
     def test_generate_file_server(self, sample_data_dir):
         connector = FileConnector(sample_data_dir)
         schema = connector.inspect()
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
 
         # Should be valid Python
         compile(code, "<generated>", "exec")
@@ -64,7 +64,7 @@ class TestCodeGenerator:
     def test_generated_code_has_main(self, sample_db):
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
 
         assert 'if __name__ == "__main__":' in code
         assert "mcp.run()" in code
@@ -73,7 +73,7 @@ class TestCodeGenerator:
         """Verify that by default, write tools are NOT generated."""
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
-        code = generate_server_code(schema, ops=["read"])
+        code = "\n\n".join(generate_server_code(schema, ops=["read"]))
 
         assert "def insert_users" not in code
         assert "def update_users_by_id" not in code
@@ -84,7 +84,7 @@ class TestCodeGenerator:
         """Verify that write tools ARE generated with read_only=False."""
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
-        code = generate_server_code(schema, ops=["read", "insert", "update", "delete"])
+        code = "\n\n".join(generate_server_code(schema, ops=["read", "insert", "update", "delete"]))
 
         # Should be valid Python
         compile(code, "<generated>", "exec")
@@ -103,7 +103,7 @@ class TestCodeGenerator:
         """Verify template uses MCP-Maker branding, not MCPForge."""
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
 
         assert "MCP-Maker" in code
         assert "mcp-maker" in code
@@ -119,7 +119,7 @@ class TestGeneratedCodePatterns:
         """Generated SQLite tools should raise RuntimeError, not return error dicts."""
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
 
         assert 'raise RuntimeError' in code
         assert 'return {"error"' not in code
@@ -128,7 +128,7 @@ class TestGeneratedCodePatterns:
         """Generated SQLite write tools should call conn.rollback() on error."""
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
-        code = generate_server_code(schema, ops=["read", "insert", "update", "delete"])
+        code = "\n\n".join(generate_server_code(schema, ops=["read", "insert", "update", "delete"]))
 
         assert "conn.rollback()" in code
         assert 'raise RuntimeError(f"insert_' in code
@@ -153,7 +153,7 @@ class TestGeneratedCodePatterns:
                 )
             ],
         )
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
 
         assert "ThreadedConnectionPool" in code
         assert "_put_connection" in code
@@ -179,7 +179,7 @@ class TestGeneratedCodePatterns:
             ],
             metadata={"host": "localhost", "port": 3306, "user": "root", "password": "", "database": "testdb"},
         )
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
 
         assert "_mysql_pool" in code
         assert "_put_connection" in code

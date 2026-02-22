@@ -47,12 +47,12 @@ class TestSemanticSearch:
         )
 
         # Without semantic — should NOT contain chromadb
-        code = generate_server_code(schema, ops=["read"], semantic=False)
+        code = "\n\n".join(generate_server_code(schema, ops=["read"], semantic=False))
         assert "chromadb" not in code
         assert "def semantic_search" not in code
 
         # With semantic — should contain chromadb and semantic tools
-        code = generate_server_code(schema, ops=["read"], semantic=True)
+        code = "\n\n".join(generate_server_code(schema, ops=["read"], semantic=True))
         assert "import chromadb" in code
         assert "semantic_search_contacts" in code
         assert "rebuild_index_contacts" in code
@@ -71,7 +71,7 @@ class TestSemanticSearch:
             ],
         )
 
-        code = generate_server_code(schema, semantic=True)
+        code = "\n\n".join(generate_server_code(schema, semantic=True))
         assert "semantic_search_users" in code
         assert "semantic_search_orders" in code
         assert "rebuild_index_users" in code
@@ -95,7 +95,7 @@ class TestSemanticSearch:
         )
 
         # Both flags together
-        code = generate_server_code(schema, ops=["read", "insert", "update", "delete"], semantic=True)
+        code = "\n\n".join(generate_server_code(schema, ops=["read", "insert", "update", "delete"], semantic=True))
         assert "semantic_search_contacts" in code
         assert "insert_contacts" in code  # write tools
         assert "import chromadb" in code
@@ -113,5 +113,5 @@ class TestSemanticSearch:
         )
 
         # Default — no semantic
-        code = generate_server_code(schema)
+        code = "\n\n".join(generate_server_code(schema))
         assert "chromadb" not in code

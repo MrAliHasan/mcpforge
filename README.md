@@ -16,16 +16,25 @@ Point MCP-Maker at a database, spreadsheet, or directory and get a fully functio
 
 ```
 Your Data Source          MCP-Maker              MCP Server
-┌──────────────┐    ┌──────────────────┐    ┌───────────────────┐
-│ SQLite DB    │    │                  │    │ list_users()      │
-│ Google Sheet │───▶│  mcp-maker init  │───▶│ search_users()    │
-│ Airtable     │    │                  │    │ count_users()     │
-│ Notion DB    │    │  (auto-inspect)  │    │ create_users()    │
-│ CSV files    │    │  (auto-generate) │    │ ... 10+ tools     │
-│ PostgreSQL   │    │                  │    │                   │
-│ MySQL        │    └──────────────────┘    └───────────────────┘
+┌──────────────┐    ┌──────────────────┐    ┌─────────────────────────┐
+│ SQLite DB    │    │                  │    │ 📄 server.py (Editable) │
+│ Google Sheet │───▶│  mcp-maker init  │───▶│   ↳ Add custom tools    │
+│ Airtable     │    │                  │    │                         │
+│ Notion DB    │    │  (auto-inspect)  │    │ ⚙️ _autogen_tools.py      │
+│ CSV files    │    │  (auto-generate) │    │   ↳ list_users()        │
+│ PostgreSQL   │    │                  │    │   ↳ search_users()      │
+│ MySQL        │    └──────────────────┘    └─────────────────────────┘
 └──────────────┘                            Ready for Claude ✅
 ```
+
+## 🏢 Enterprise-Ready Architecture
+
+- **Non-Destructive Generation**: `mcp-maker init` safely outputs two files: `server.py` (your editable entry point) and `_autogen_tools.py`. Regenerate as often as you like—your custom tools and business logic are never overwritten.
+- **Credential Hardening**: Connection strings and API keys are strictly forbidden in generated files. They are securely loaded via generated `.env` files and standard environment variables.
+- **LLM Context Optimization (`--consolidate-threshold`)**: For massive schemas (>20 tables), MCP-Maker intelligently switches from generating per-table CRUD tools to consolidated generic tools (e.g., `query_database`) to prevent LLM context window bloat and reasoning degradation.
+- **Structured Audit Logging (`--audit`)**: Optionally generate servers that output structured JSON logs for every tool invocation, ready for ingestion into Datadog, Splunk, or ELK.
+- **Async-Ready Connection Pooling**: Fast, thread-safe database interactions with built-in connection pooling for PostgreSQL (`psycopg2.pool`), MySQL, and SQLite.
+- **Guaranteed Code Quality**: All generated Python code is automatically syntactically verified through `ast.parse` and statically formatted with `black`.
 
 ## ✨ Why MCP-Maker?
 
@@ -144,6 +153,8 @@ mcp-maker init <source>                    # Generate an MCP server
 mcp-maker init <source> --ops read,insert  # Include specific write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic         # Enable vector/semantic search
+mcp-maker init <source> --audit            # Enable structured JSON audit logging
+mcp-maker init <source> --consolidate-threshold 10 # Consolidate large schemas
 mcp-maker serve                            # Run the generated server
 mcp-maker inspect <source>                 # Preview what would be generated (dry run)
 mcp-maker config --install                 # Auto-write Claude Desktop config

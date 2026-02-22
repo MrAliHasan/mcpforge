@@ -1,90 +1,27 @@
 """
-Auto-generated MCP Server by MCP-Maker
-Source: {{ source_type }} ({{ source_uri }})
+MCP-Maker Server
+Source: {{ source_type }}
 
-This server was generated automatically. You can customize it by editing
-the tools and resources below, or regenerate it with `mcp-maker init`.
+This is your main server file. It is safe to edit!
+`mcp-maker init` will NOT overwrite this file if it already exists.
 
-Run with: mcp-maker serve
-Or directly: python mcp_server.py
+You can add your own custom tools here, and they will be served alongside
+the auto-generated tools from `{{ autogen_module }}`.
+
+Run with: mcp-maker serve --file {{ target_filename }}
+Or directly: python {{ target_filename }}
 """
 
-import traceback
+from {{ autogen_module }} import mcp
 
-{% if source_type == "sqlite" %}
-import sqlite3
-import threading
-{% elif source_type == "postgres" %}
-import psycopg2
-import psycopg2.extras
-import psycopg2.pool
-{% elif source_type == "mysql" %}
-import pymysql
-import pymysql.cursors
-{% elif source_type == "files" %}
-import csv
-import json
-import os
-{% endif %}
-
-{% if source_type in ["airtable", "notion", "gsheets"] %}
-import time
-import threading
-
-class TokenBucketRateLimiter:
-    """A thread-safe token bucket rate limiter to prevent API 429s from parallel LLM calls."""
-    def __init__(self, target_rps: float, burst_size: int = 1):
-        self._target_rps = target_rps
-        self._capacity = burst_size
-        self._tokens = burst_size
-        self._last_refill = time.monotonic()
-        self._lock = threading.Lock()
-
-    def acquire(self):
-        with self._lock:
-            while True:
-                now = time.monotonic()
-                elapsed = now - self._last_refill
-                if elapsed > 0:
-                    self._tokens = min(self._capacity, self._tokens + elapsed * self._target_rps)
-                    self._last_refill = now
-                
-                if self._tokens >= 1.0:
-                    self._tokens -= 1.0
-                    return
-                time.sleep(0.1)
-
-# Default to 4 requests per second to stay safely under 5 req/s limits
-_rate_limiter = TokenBucketRateLimiter(target_rps=4.0, burst_size=1)
-{% endif %}
-
-from mcp.server.fastmcp import FastMCP
-
-# ─── Server Setup ───
-
-mcp = FastMCP("{{ source_type }}-server")
-
-{% if source_type == "sqlite" %}
-{% include "partials/sqlite.jinja2" %}
-{% elif source_type == "postgres" %}
-{% include "partials/postgres.jinja2" %}
-{% elif source_type == "mysql" %}
-{% include "partials/mysql.jinja2" %}
-{% elif source_type == "airtable" %}
-{% include "partials/airtable.jinja2" %}
-{% elif source_type == "gsheet" %}
-{% include "partials/gsheets.jinja2" %}
-{% elif source_type == "notion" %}
-{% include "partials/notion.jinja2" %}
-{% elif source_type == "files" %}
-{% include "partials/files.jinja2" %}
-{% endif %}
-
-{% if semantic %}
-{% include "partials/semantic_search.jinja2" %}
-{% endif %}
-
-# ─── Run Server ───
+# ─── Add Custom Tools Here ───
+#
+# @mcp.tool()
+# def my_custom_tool(name: str) -> str:
+#     """A custom tool that does something cool."""
+#     return f"Hello, {name}!"
+#
+# ─── End Custom Tools ───
 
 if __name__ == "__main__":
     mcp.run()
