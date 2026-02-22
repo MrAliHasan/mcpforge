@@ -186,8 +186,11 @@ def filter_{{ table.name }}(formula: str, limit: int = {{ default_limit }}) -> l
 def count_{{ table.name }}() -> int:
     """Get the total number of records in '{{ table.description }}'."""
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
-    records = tbl.all(fields=[])
-    return len(records)
+    # Fetch only record IDs (no field data) to minimize API payload
+    count = 0
+    for page in tbl.iterate(fields=[]):
+        count += len(page)
+    return count
 {% endif %}
 
 

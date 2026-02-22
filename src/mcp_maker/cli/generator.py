@@ -12,7 +12,7 @@ from rich.panel import Panel
 from mcp_maker import __version__
 from mcp_maker.core.schema import DataSourceSchema
 from mcp_maker.connectors.base import get_connector, register_connector
-from mcp_maker.core.generator import generate_server_code, write_server
+from mcp_maker.core.generator import generate_server_code, write_server, read_lock_file
 from .main import app, console
 
 def _load_connectors():
@@ -135,6 +135,26 @@ def init(
         "--consolidate-threshold",
         help="Threshold of tables before switching to consolidated generic tools instead of per-table tools.",
     ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Skip schema change warnings and force regeneration.",
+    ),
+    no_ssl: bool = typer.Option(
+        False,
+        "--no-ssl",
+        help="Disable SSL/TLS enforcement for database connections (use for local dev only).",
+    ),
+    auth: str = typer.Option(
+        "none",
+        "--auth",
+        help="Authentication mode for generated server. Options: none, api-key.",
+    ),
+    async_mode: bool = typer.Option(
+        False,
+        "--async",
+        help="Generate async tools using aiosqlite/asyncpg/aiomysql.",
+    ),
 ):
     """⚒️  Generate an MCP server from a data source.
 
@@ -212,6 +232,38 @@ def init(
     # Print schema summary
     _print_schema_summary(schema)
 
+    # Schema change detection via lock file
+    if not force:
+        old_lock = read_lock_file(output)
+        if old_lock:
+            old_hash = old_lock.get("schema_hash", "")
+            new_hash = schema.schema_hash
+            if old_hash != new_hash:
+                diff = DataSourceSchema.schema_diff(
+                    old_lock.get("tables", []),
+                    schema.table_names,
+                    old_columns=old_lock.get("columns"),
+                    new_columns=schema.column_fingerprint,
+                )
+                console.print()
+                console.print("  ⚠️  [yellow]Schema has changed since last generation![/yellow]")
+                if diff["added"]:
+                    console.print(f"  [green]  + Added tables:[/green] {', '.join(diff['added'])}")
+                if diff["removed"]:
+                    console.print(f"  [red]  - Removed tables:[/red] {', '.join(diff['removed'])}")
+                for tbl, changes in diff.get("column_changes", {}).items():
+                    parts = []
+                    if changes.get("added"):
+                        parts.append(f"+{', '.join(changes['added'])}")
+                    if changes.get("removed"):
+                        parts.append(f"-{', '.join(changes['removed'])}")
+                    if changes.get("type_changed"):
+                        parts.append(f"~{', '.join(changes['type_changed'])}")
+                    console.print(f"  [cyan]  ↻ {tbl}:[/cyan] {'; '.join(parts)}")
+                if not diff["added"] and not diff["removed"] and not diff.get("column_changes"):
+                    console.print("  [dim]  Primary key or ordering changes detected.[/dim]")
+                console.print("  [dim]Use --force to suppress this warning.[/dim]")
+
     # Step 4: Generate server
     with console.status("[bold green]Generating MCP server..."):
         server_path, autogen_path, server_created = write_server(
@@ -224,6 +276,9 @@ def init(
             max_limit=max_limit,
             audit=audit,
             consolidate_threshold=consolidate_threshold,
+            ssl_enabled=not no_ssl,
+            auth_mode=auth,
+            async_mode=async_mode,
         )
 
     # Generate .env.example with placeholder (never embed real credentials)

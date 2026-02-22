@@ -31,6 +31,10 @@ Your Data Source          MCP-Maker              MCP Server
 
 - **Non-Destructive Generation**: `mcp-maker init` safely outputs two files: `server.py` (your editable entry point) and `_autogen_tools.py`. Regenerate as often as you like—your custom tools and business logic are never overwritten.
 - **Credential Hardening**: Connection strings and API keys are strictly forbidden in generated files. They are securely loaded via generated `.env` files and standard environment variables.
+- **API Key Authentication (`--auth api-key`)**: Gate access to your generated server with an `MCP_API_KEY` environment variable. Every tool call is wrapped with an auth check.
+- **SSL/TLS by Default**: All PostgreSQL and MySQL connections enforce encrypted transport (`sslmode=require` / `ssl=True`). Disable with `--no-ssl` for local development only.
+- **Schema Versioning**: Generates a `.mcp-maker.lock` file tracking your schema fingerprint. On re-generation, detects added/removed tables and warns about breaking changes.
+- **Async Generation (`--async`)**: Generate async tools using `aiosqlite`, `asyncpg`, or `aiomysql` for high-concurrency MCP servers.
 - **LLM Context Optimization (`--consolidate-threshold`)**: For massive schemas (>20 tables), MCP-Maker intelligently switches from generating per-table CRUD tools to consolidated generic tools (e.g., `query_database`) to prevent LLM context window bloat and reasoning degradation.
 - **Structured Audit Logging (`--audit`)**: Optionally generate servers that output structured JSON logs for every tool invocation, ready for ingestion into Datadog, Splunk, or ELK.
 - **Async-Ready Connection Pooling**: Fast, thread-safe database interactions with built-in connection pooling for PostgreSQL (`psycopg2.pool`), MySQL, and SQLite.
@@ -154,6 +158,10 @@ mcp-maker init <source> --ops read,insert  # Include specific write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic         # Enable vector/semantic search
 mcp-maker init <source> --audit            # Enable structured JSON audit logging
+mcp-maker init <source> --auth api-key     # Require MCP_API_KEY for access
+mcp-maker init <source> --async            # Generate async tools (aiosqlite/asyncpg)
+mcp-maker init <source> --no-ssl           # Disable SSL for local development
+mcp-maker init <source> --force            # Skip schema change warnings
 mcp-maker init <source> --consolidate-threshold 10 # Consolidate large schemas
 mcp-maker serve                            # Run the generated server
 mcp-maker inspect <source>                 # Preview what would be generated (dry run)
@@ -187,7 +195,12 @@ pip install mcp-maker[notion]
 # With semantic search (ChromaDB vector search)
 pip install mcp-maker[semantic]
 
-# All connectors + semantic search
+# With async support
+pip install mcp-maker[async-sqlite]    # aiosqlite
+pip install mcp-maker[async-postgres]  # asyncpg
+pip install mcp-maker[async-mysql]     # aiomysql
+
+# All connectors + semantic search + async
 pip install mcp-maker[all]
 
 # Development

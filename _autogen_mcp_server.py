@@ -24,6 +24,7 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("sqlite-server")
 
 
+
 # ─── Database Connection (Thread-Safe) ───
 
 DB_PATH = DATABASE_URL
@@ -32,7 +33,7 @@ if DB_PATH and DB_PATH.startswith("sqlite:///"):
 elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpt9u3wodk.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpxuy5v6wv.db"
 
 _local = threading.local()
 

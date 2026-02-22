@@ -44,6 +44,10 @@ mcp-maker init <source> --ops read,insert      # Include specific write operatio
 mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic             # Enable vector/semantic search
 mcp-maker init <source> --audit                # Enable structured JSON audit logging
+mcp-maker init <source> --auth api-key         # Require MCP_API_KEY for access
+mcp-maker init <source> --async                # Generate async tools (aiosqlite/asyncpg/aiomysql)
+mcp-maker init <source> --no-ssl               # Disable SSL/TLS enforcement (local dev only)
+mcp-maker init <source> --force                # Skip schema change warnings on re-generation
 mcp-maker init <source> --consolidate-threshold 20 # Consolidate tools for large schemas
 mcp-maker serve                                # Run the generated server
 mcp-maker inspect <source>                     # Dry run — preview what would be generated
@@ -116,6 +120,43 @@ notion://DB_ID_1,DB_ID_2              # Notion (multiple DBs)
 | `GOOGLE_SERVICE_ACCOUNT_FILE` | Google Sheets | `/path/to/credentials.json` |
 | `GOOGLE_CREDENTIALS_JSON` | Google Sheets (alt) | `'{"type":"service_account",...}'` |
 | `NOTION_API_KEY` | Notion | `ntn_xxxxxxxxxxxx` |
+| `MCP_API_KEY` | Auth middleware (`--auth api-key`) | Any secret string |
+
+---
+
+## 🔒 Security Features
+
+### API Key Authentication
+
+```bash
+mcp-maker init sqlite:///my.db --auth api-key
+export MCP_API_KEY="your-secret-key"
+mcp-maker serve
+```
+
+Every tool call is validated against `MCP_API_KEY`. Without it, all requests are rejected with `PermissionError`.
+
+### SSL/TLS Enforcement
+
+PostgreSQL and MySQL connections enforce SSL by default:
+- **PostgreSQL**: Appends `sslmode=require` to DSN
+- **MySQL**: Adds `ssl=True` to connection config
+
+```bash
+# Disable for local development only
+mcp-maker init postgres://localhost/dev --no-ssl
+```
+
+### Schema Versioning
+
+MCP-Maker generates a `.mcp-maker.lock` file tracking your schema fingerprint. On re-generation, it detects breaking changes:
+
+```
+⚠️  Schema has changed since last generation!
+  + Added tables: payments
+  - Removed tables: legacy_orders
+Use --force to suppress this warning.
+```
 
 ---
 

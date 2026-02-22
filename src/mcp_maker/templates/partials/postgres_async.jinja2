@@ -1,0 +1,264 @@
+{% import "partials/macros.jinja2" as m %}
+# ─── Async Database Connection Pool (asyncpg) ───
+
+DSN = DATABASE_URL
+{% if ssl_enabled %}
+# Enforce SSL/TLS for production security
+if DSN and "sslmode" not in DSN:
+    DSN = DSN + ("&" if "?" in DSN else "?") + "sslmode=require"
+{% endif %}
+
+_pg_pool = None
+
+async def _get_pool():
+    """Lazily initialize the async connection pool on first use."""
+    global _pg_pool
+    if _pg_pool is None:
+        _pg_pool = await asyncpg.create_pool(dsn=DSN, min_size=1, max_size=10)
+    return _pg_pool
+
+{% if consolidate %}
+# ─── Consolidated Tools (Large Schema Mode) ───
+
+{{ m.consolidated_whitelist(tables) }}
+
+{{ m.consolidated_list_tables(ops) }}
+
+{% if 'read' in ops %}
+@mcp.tool()
+async def describe_table(table_name: str) -> dict:
+    """Get the schema (columns and types) for a specific table."""
+    table_name = _validate_table(table_name)
+    pool = await _get_pool()
+    rows = await pool.fetch(
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' AND table_name=$1",
+        table_name,
+    )
+    return {row["column_name"]: row["data_type"] for row in rows}
+
+@mcp.tool()
+async def query_database(table_name: str, filters: dict | None = None, limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """Query a table with optional exact-match filters."""
+    table_name = _validate_table(table_name)
+    limit = min(limit, {{ max_limit }})
+    pool = await _get_pool()
+    query = f'SELECT * FROM "{table_name}"'
+    params = []
+    idx = 1
+    if filters:
+        conditions = []
+        for k, v in filters.items():
+            conditions.append(f'"{k}" = ${idx}')
+            params.append(v)
+            idx += 1
+        query += " WHERE " + " AND ".join(conditions)
+    query += f" LIMIT ${idx} OFFSET ${idx + 1}"
+    params.extend([limit, offset])
+    rows = await pool.fetch(query, *params)
+    return [dict(row) for row in rows]
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+async def insert_record(table_name: str, data: dict) -> dict:
+    """Insert a new record into a table."""
+    table_name = _validate_table(table_name)
+    pool = await _get_pool()
+    columns = [f'"{k}"' for k in data.keys()]
+    placeholders = [f"${i+1}" for i in range(len(data))]
+    values = list(data.values())
+    query = f'INSERT INTO "{table_name}" ({", ".join(columns)}) VALUES ({", ".join(placeholders)}) RETURNING *'
+    row = await pool.fetchrow(query, *values)
+    return dict(row) if row else {}
+{% endif %}
+
+{% if 'update' in ops %}
+@mcp.tool()
+async def update_record(table_name: str, filters: dict, data: dict) -> list[dict]:
+    """Update records in a table matching the exact filters."""
+    table_name = _validate_table(table_name)
+    if not filters:
+        raise ValueError("Filters are required for update to prevent mass modification")
+    pool = await _get_pool()
+    idx = 1
+    updates = []
+    values = []
+    for k, v in data.items():
+        updates.append(f'"{k}" = ${idx}')
+        values.append(v)
+        idx += 1
+    conditions = []
+    for k, v in filters.items():
+        conditions.append(f'"{k}" = ${idx}')
+        values.append(v)
+        idx += 1
+    query = f'UPDATE "{table_name}" SET {", ".join(updates)} WHERE {" AND ".join(conditions)} RETURNING *'
+    rows = await pool.fetch(query, *values)
+    return [dict(row) for row in rows]
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+async def delete_record(table_name: str, filters: dict) -> dict:
+    """Delete records from a table matching the exact filters."""
+    table_name = _validate_table(table_name)
+    if not filters:
+        raise ValueError("Filters are required for deletion to prevent mass deletion")
+    pool = await _get_pool()
+    idx = 1
+    conditions = []
+    values = []
+    for k, v in filters.items():
+        conditions.append(f'"{k}" = ${idx}')
+        values.append(v)
+        idx += 1
+    query = f'DELETE FROM "{table_name}" WHERE {" AND ".join(conditions)}'
+    result = await pool.execute(query, *values)
+    count = int(result.split()[-1]) if result else 0
+    return {"deleted": count}
+{% endif %}
+
+{% else %}
+
+{% for table in tables %}
+
+{{ m.table_header(table) }}
+
+{% if 'read' in ops %}
+@mcp.tool()
+async def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List rows from the '{{ table.name }}' table."""
+    limit = min(limit, {{ max_limit }})
+    pool = await _get_pool()
+    rows = await pool.fetch(
+        'SELECT * FROM "{{ table.name }}" LIMIT $1 OFFSET $2',
+        limit, offset,
+    )
+    return [dict(row) for row in rows]
+{% endif %}
+
+{% if table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+async def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
+    """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
+    pool = await _get_pool()
+    row = await pool.fetchrow(
+        'SELECT * FROM "{{ table.name }}" WHERE "{{ pk.name }}" = $1',
+        {{ pk.name }},
+    )
+    return dict(row) if row else None
+{% endif %}
+
+{% endif %}
+
+{% if table.searchable_columns %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+async def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.name }}' table by matching against text columns (ILIKE)."""
+    limit = min(limit, {{ max_limit }})
+    pool = await _get_pool()
+    conditions = []
+    params = []
+    idx = 1
+    {% for col in table.searchable_columns %}
+    {% if col.type.value == 'string' %}
+    conditions.append(f'"{{ col.name }}" ILIKE ${idx}')
+    params.append(f"%{query}%")
+    idx += 1
+    {% endif %}
+    {% endfor %}
+    if not conditions:
+        return []
+    where_clause = " OR ".join(conditions)
+    params.append(limit)
+    rows = await pool.fetch(
+        f'SELECT * FROM "{{ table.name }}" WHERE {where_clause} LIMIT ${idx}',
+        *params,
+    )
+    return [dict(row) for row in rows]
+{% endif %}
+
+{% endif %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+async def count_{{ table.name }}() -> int:
+    """Get the total number of rows in the '{{ table.name }}' table."""
+    pool = await _get_pool()
+    row = await pool.fetchrow('SELECT COUNT(*) as cnt FROM "{{ table.name }}"')
+    return row["cnt"]
+{% endif %}
+
+{{ m.schema_tool(table, ops) }}
+
+{% if ('insert' in ops or 'update' in ops or 'delete' in ops) and table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+async def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
+    """Insert a new row into the '{{ table.name }}' table."""
+    pool = await _get_pool()
+    columns = []
+    values = []
+    {% for col in table.columns if not col.primary_key %}
+    if {{ col.name }} is not None:
+        columns.append('"{{ col.name }}"')
+        values.append({{ col.name }})
+    {% endfor %}
+    placeholders = [f"${i+1}" for i in range(len(values))]
+    col_names = ", ".join(columns)
+    row = await pool.fetchrow(
+        f'INSERT INTO "{{ table.name }}" ({col_names}) VALUES ({", ".join(placeholders)}) RETURNING *',
+        *values,
+    )
+    return dict(row) if row else {}
+{% endif %}
+
+{% if 'update' in ops %}
+@mcp.tool()
+async def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, {% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }} | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
+    """Update an existing row in the '{{ table.name }}' table."""
+    pool = await _get_pool()
+    idx = 1
+    updates = []
+    values = []
+    {% for col in table.columns if not col.primary_key %}
+    if {{ col.name }} is not None:
+        updates.append(f'"{{ col.name }}" = ${idx}')
+        values.append({{ col.name }})
+        idx += 1
+    {% endfor %}
+    if not updates:
+        return await get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }})
+    set_clause = ", ".join(updates)
+    values.append({{ pk.name }})
+    row = await pool.fetchrow(
+        f'UPDATE "{{ table.name }}" SET {set_clause} WHERE "{{ pk.name }}" = ${idx} RETURNING *',
+        *values,
+    )
+    return dict(row) if row else None
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+async def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
+    """Delete a row from the '{{ table.name }}' table."""
+    pool = await _get_pool()
+    result = await pool.execute(
+        'DELETE FROM "{{ table.name }}" WHERE "{{ pk.name }}" = $1',
+        {{ pk.name }},
+    )
+    deleted = int(result.split()[-1]) if result else 0
+    return {"deleted": deleted, "{{ pk.name }}": {{ pk.name }}}
+{% endif %}
+
+{% endif %}
+{% endfor %}
+
+{% endif %}

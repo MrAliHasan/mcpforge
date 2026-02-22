@@ -308,3 +308,107 @@ class TestSecurityHardening:
         assert "min(limit, 1000)" in code
         assert "min(limit, 500)" not in code
 
+
+class TestSchemaVersioning:
+    """Tests for schema hash and lock file change detection."""
+
+    def test_schema_hash_is_stable(self, sample_db):
+        """Same schema should always produce the same hash."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        hash1 = schema.schema_hash
+        hash2 = schema.schema_hash
+        assert hash1 == hash2
+        assert len(hash1) == 64  # SHA-256
+
+    def test_schema_diff_detects_changes(self):
+        """schema_diff should detect added and removed tables."""
+        diff = DataSourceSchema.schema_diff(
+            ["users", "orders"],
+            ["users", "products"],
+        )
+        assert diff["added"] == ["products"]
+        assert diff["removed"] == ["orders"]
+
+    def test_lock_file_written_on_generate(self, sample_db):
+        """write_server should create .mcp-maker.lock."""
+        from mcp_maker.core.generator import write_server, read_lock_file
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            write_server(schema, output_dir=tmpdir)
+            lock = read_lock_file(tmpdir)
+            assert lock is not None
+            assert "schema_hash" in lock
+            assert "tables" in lock
+            assert lock["source_type"] == "sqlite"
+
+
+class TestSSLEnforcement:
+    """Tests for SSL/TLS enforcement in generated code."""
+
+    def test_postgres_ssl_enabled_by_default(self, sample_db):
+        """Postgres code should enforce sslmode=require by default."""
+        schema = DataSourceSchema(
+            source_type="postgres",
+            source_uri="postgres://localhost/test",
+            tables=[Table(name="users", columns=[
+                Column(name="id", type=ColumnType.INTEGER, primary_key=True),
+            ])],
+        )
+        code = "\n\n".join(generate_server_code(schema))
+        assert "sslmode=require" in code
+
+    def test_postgres_ssl_disabled(self):
+        """Postgres code should NOT enforce SSL when ssl_enabled=False."""
+        schema = DataSourceSchema(
+            source_type="postgres",
+            source_uri="postgres://localhost/test",
+            tables=[Table(name="users", columns=[
+                Column(name="id", type=ColumnType.INTEGER, primary_key=True),
+            ])],
+        )
+        code = "\n\n".join(generate_server_code(schema, ssl_enabled=False))
+        assert "sslmode=require" not in code
+
+
+class TestAuthMiddleware:
+    """Tests for API key authentication in generated servers."""
+
+    def test_auth_api_key_generates_middleware(self, sample_db):
+        """--auth api-key should generate MCP_API_KEY check."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema, auth_mode="api-key"))
+        assert "MCP_API_KEY" in code
+        assert "PermissionError" in code
+
+    def test_auth_none_no_middleware(self, sample_db):
+        """--auth none should NOT generate auth middleware."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema, auth_mode="none"))
+        assert "MCP_API_KEY" not in code
+
+
+class TestAsyncGeneration:
+    """Tests for async tool generation."""
+
+    def test_async_sqlite_uses_aiosqlite(self, sample_db):
+        """--async should generate aiosqlite imports."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema, async_mode=True))
+        assert "import aiosqlite" in code
+        assert "import sqlite3" not in code
+        assert "async def list_" in code
+        assert "async with aiosqlite.connect" in code
+
+    def test_sync_sqlite_no_aiosqlite(self, sample_db):
+        """Non-async mode should NOT import aiosqlite."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema, async_mode=False))
+        assert "import sqlite3" in code
+        assert "import aiosqlite" not in code
+

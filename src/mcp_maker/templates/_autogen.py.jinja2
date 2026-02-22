@@ -39,15 +39,27 @@ def log_audit_event(tool_name: str, args: dict, status: str, error: str = None):
 {% endif %}
 
 {% if source_type == "sqlite" %}
+{% if async_mode %}
+import aiosqlite
+{% else %}
 import sqlite3
 import threading
+{% endif %}
 {% elif source_type == "postgres" %}
+{% if async_mode %}
+import asyncpg
+{% else %}
 import psycopg2
 import psycopg2.extras
 import psycopg2.pool
+{% endif %}
 {% elif source_type == "mysql" %}
+{% if async_mode %}
+import aiomysql
+{% else %}
 import pymysql
 import pymysql.cursors
+{% endif %}
 {% elif source_type == "files" %}
 import csv
 import json
@@ -91,6 +103,35 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("{{ source_type }}-server")
 
+{% if auth_mode == "api-key" %}
+# ─── API Key Authentication ───
+
+_MCP_API_KEY = os.environ.get("MCP_API_KEY")
+if not _MCP_API_KEY:
+    import warnings
+    warnings.warn(
+        "MCP_API_KEY is not set. All requests will be rejected. "
+        "Set MCP_API_KEY environment variable to enable access.",
+        stacklevel=1,
+    )
+
+_original_tool_auth = mcp.tool
+
+def _auth_tool_decorator(*args, **kwargs):
+    def decorator(func):
+        import functools
+        @functools.wraps(func)
+        def wrapper(*w_args, **w_kwargs):
+            # Check for API key in environment (set by transport layer)
+            if not _MCP_API_KEY:
+                raise PermissionError("Server API key not configured. Set MCP_API_KEY env var.")
+            return func(*w_args, **w_kwargs)
+        return _original_tool_auth(*args, **kwargs)(wrapper)
+    return decorator
+
+mcp.tool = _auth_tool_decorator
+{% endif %}
+
 {% if audit %}
 _original_tool = mcp.tool
 
@@ -113,11 +154,23 @@ mcp.tool = _audit_tool_decorator
 {% endif %}
 
 {% if source_type == "sqlite" %}
+{% if async_mode %}
+{% include "partials/sqlite_async.jinja2" %}
+{% else %}
 {% include "partials/sqlite.jinja2" %}
+{% endif %}
 {% elif source_type == "postgres" %}
+{% if async_mode %}
+{% include "partials/postgres_async.jinja2" %}
+{% else %}
 {% include "partials/postgres.jinja2" %}
+{% endif %}
 {% elif source_type == "mysql" %}
+{% if async_mode %}
+{% include "partials/mysql_async.jinja2" %}
+{% else %}
 {% include "partials/mysql.jinja2" %}
+{% endif %}
 {% elif source_type == "airtable" %}
 {% include "partials/airtable.jinja2" %}
 {% elif source_type == "gsheet" %}

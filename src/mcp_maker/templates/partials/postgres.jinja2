@@ -2,6 +2,11 @@
 # ─── Database Connection Pool (Lazy Initialization) ───
 
 DSN = DATABASE_URL
+{% if ssl_enabled %}
+# Enforce SSL/TLS for production security
+if DSN and "sslmode" not in DSN:
+    DSN = DSN + ("&" if "?" in DSN else "?") + "sslmode=require"
+{% endif %}
 _pg_pool = None
 
 

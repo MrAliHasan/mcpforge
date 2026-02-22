@@ -49,6 +49,9 @@ def generate_server_code(
     autogen_module: str = "_autogen_tools",
     audit: bool = False,
     consolidate_threshold: int = 20,
+    ssl_enabled: bool = True,
+    auth_mode: str = "none",
+    async_mode: bool = False,
 ) -> tuple[str, str]:
     """Generate complete MCP server Python code from a schema.
 
@@ -86,6 +89,9 @@ def generate_server_code(
         "autogen_module": autogen_module,
         "audit": audit,
         "consolidate": consolidate,
+        "ssl_enabled": ssl_enabled,
+        "auth_mode": auth_mode,
+        "async_mode": async_mode,
     }
 
     server_template = env.get_template("server.py.jinja2")
@@ -129,6 +135,9 @@ def write_server(
     max_limit: int = 500,
     audit: bool = False,
     consolidate_threshold: int = 20,
+    ssl_enabled: bool = True,
+    auth_mode: str = "none",
+    async_mode: bool = False,
 ) -> tuple[str, str, bool]:
     """Write generated MCP server files.
 
@@ -152,6 +161,9 @@ def write_server(
         autogen_module=autogen_module,
         audit=audit,
         consolidate_threshold=consolidate_threshold,
+        ssl_enabled=ssl_enabled,
+        auth_mode=auth_mode,
+        async_mode=async_mode,
     )
 
     server_code_formatted = format_and_verify_code(server_code, filename)
@@ -170,4 +182,39 @@ def write_server(
     with open(autogen_path, "w", encoding="utf-8") as f:
         f.write(autogen_code_formatted)
 
+    # Write schema lock file for change detection
+    _write_lock_file(schema, output_dir)
+
     return os.path.abspath(server_path), os.path.abspath(autogen_path), server_created
+
+
+def _write_lock_file(schema: DataSourceSchema, output_dir: str) -> None:
+    """Write .mcp-maker.lock with schema fingerprint for change detection."""
+    import json
+    from datetime import datetime, timezone
+
+    lock_path = os.path.join(output_dir, ".mcp-maker.lock")
+    lock_data = {
+        "schema_hash": schema.schema_hash,
+        "tables": schema.table_names,
+        "columns": schema.column_fingerprint,
+        "source_type": schema.source_type,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    with open(lock_path, "w", encoding="utf-8") as f:
+        json.dump(lock_data, f, indent=2)
+
+
+def read_lock_file(output_dir: str) -> dict | None:
+    """Read existing .mcp-maker.lock if it exists."""
+    import json
+
+    lock_path = os.path.join(output_dir, ".mcp-maker.lock")
+    if not os.path.exists(lock_path):
+        return None
+    try:
+        with open(lock_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+

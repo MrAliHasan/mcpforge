@@ -12,6 +12,9 @@ MYSQL_CONFIG = {
     "user": _parsed.username or "root",
     "password": _parsed.password or "",
     "database": _parsed.path.lstrip('/') or "",
+{% if ssl_enabled %}
+    "ssl": {"ssl": True},
+{% endif %}
 }
 
 _mysql_pool = _queue.Queue(maxsize=10)

@@ -1,0 +1,134 @@
+{
+  "schema_hash": "c3d9f0412faad70651ffd59889e50704518bd4dcc81b882eb3564bb8472afd8c",
+  "tables": [
+    "table_0",
+    "table_1",
+    "table_10",
+    "table_11",
+    "table_12",
+    "table_13",
+    "table_14",
+    "table_15",
+    "table_16",
+    "table_17",
+    "table_18",
+    "table_19",
+    "table_2",
+    "table_20",
+    "table_21",
+    "table_22",
+    "table_23",
+    "table_24",
+    "table_3",
+    "table_4",
+    "table_5",
+    "table_6",
+    "table_7",
+    "table_8",
+    "table_9"
+  ],
+  "columns": {
+    "table_0": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_1": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_10": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_11": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_12": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_13": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_14": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_15": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_16": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_17": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_18": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_19": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_2": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_20": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_21": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_22": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_23": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_24": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_3": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_4": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_5": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_6": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_7": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_8": {
+      "id": "integer",
+      "name": "string"
+    },
+    "table_9": {
+      "id": "integer",
+      "name": "string"
+    }
+  },
+  "source_type": "sqlite",
+  "generated_at": "2026-02-22T23:34:49.599903+00:00"
+}

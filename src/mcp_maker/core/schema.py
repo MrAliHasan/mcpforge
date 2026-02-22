@@ -160,3 +160,82 @@ class DataSourceSchema:
             for r in self.resources:
                 parts.append(f"  • {r.name} [{r.mime_type}]")
         return "\n".join(parts)
+
+    @property
+    def schema_hash(self) -> str:
+        """Compute a stable SHA-256 fingerprint of the schema structure.
+
+        The hash covers table names, column names, column types, and primary keys
+        so that any structural change to the schema produces a different hash.
+        """
+        import hashlib
+        import json
+
+        canonical = []
+        for t in sorted(self.tables, key=lambda t: t.name):
+            cols = []
+            for c in sorted(t.columns, key=lambda c: c.name):
+                cols.append({
+                    "name": c.name,
+                    "type": c.type.value,
+                    "pk": c.primary_key,
+                })
+            canonical.append({"table": t.name, "columns": cols})
+
+        blob = json.dumps(canonical, sort_keys=True).encode("utf-8")
+        return hashlib.sha256(blob).hexdigest()
+
+    @property
+    def table_names(self) -> list[str]:
+        """Return sorted list of table names."""
+        return sorted(t.name for t in self.tables)
+
+    @staticmethod
+    def schema_diff(old_tables: list[str], new_tables: list[str],
+                    old_columns: dict | None = None,
+                    new_columns: dict | None = None) -> dict:
+        """Compute added, removed tables and column-level changes.
+
+        Args:
+            old_tables: Previous table names.
+            new_tables: Current table names.
+            old_columns: Optional dict of {table: {col: type}} from old lock.
+            new_columns: Optional dict of {table: {col: type}} from new schema.
+        """
+        old_set = set(old_tables)
+        new_set = set(new_tables)
+        result = {
+            "added": sorted(new_set - old_set),
+            "removed": sorted(old_set - new_set),
+            "column_changes": {},
+        }
+        # Column-level diff for tables that exist in both
+        if old_columns and new_columns:
+            for table in sorted(old_set & new_set):
+                old_cols = old_columns.get(table, {})
+                new_cols = new_columns.get(table, {})
+                changes = {}
+                added_cols = sorted(set(new_cols) - set(old_cols))
+                removed_cols = sorted(set(old_cols) - set(new_cols))
+                type_changed = sorted(
+                    c for c in set(old_cols) & set(new_cols)
+                    if old_cols[c] != new_cols[c]
+                )
+                if added_cols:
+                    changes["added"] = added_cols
+                if removed_cols:
+                    changes["removed"] = removed_cols
+                if type_changed:
+                    changes["type_changed"] = type_changed
+                if changes:
+                    result["column_changes"][table] = changes
+        return result
+
+    @property
+    def column_fingerprint(self) -> dict[str, dict[str, str]]:
+        """Return {table: {col: type}} for lock file storage."""
+        return {
+            t.name: {c.name: c.type.value for c in t.columns}
+            for t in self.tables
+        }
+
