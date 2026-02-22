@@ -280,6 +280,8 @@ def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
     {% endfor %}
     fields = _to_airtable_{{ table.name }}(data)
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    # Throttle API requests to prevent 429 Too Many Requests
+    _rate_limiter.acquire()
     record = tbl.create(fields)
     return _normalize_{{ table.name }}(record)
 

@@ -1,0 +1,63 @@
+{# ────────────────────────────────────────────────────────────
+   macros.jinja2 — Shared template macros for SQL-based templates
+   Used by sqlite.jinja2, postgres.jinja2, mysql.jinja2
+   ──────────────────────────────────────────────────────────── #}
+
+
+{# ─── Table Header Comment ─── #}
+{% macro table_header(table) %}
+# ═══════════════════════════════════════════════════════
+# Table: {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+{% endmacro %}
+
+
+{# ─── Static Schema Tool (identical across all DBs) ─── #}
+{% macro schema_tool(table, ops) %}
+{% if 'read' in ops %}
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the schema (column names and types) of the '{{ table.name }}' table.
+
+    Returns:
+        Dictionary with column names as keys and types as values.
+    """
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
+{% endif %}
+{% endmacro %}
+
+
+{# ─── Consolidated Mode: Table Whitelist + Validator ─── #}
+{% macro consolidated_whitelist(tables) %}
+# Known tables discovered at generation time — prevents SQL injection
+_KNOWN_TABLES = { {% for table in tables %}"{{ table.name }}", {% endfor %} }
+
+def _validate_table(name: str) -> str:
+    """Validate that a table name is in the known set to prevent SQL injection."""
+    if name not in _KNOWN_TABLES:
+        raise ValueError(f"Unknown table: {name}. Available: {', '.join(sorted(_KNOWN_TABLES))}")
+    return name
+{% endmacro %}
+
+
+{# ─── Consolidated Mode: list_tables (identical across all DBs) ─── #}
+{% macro consolidated_list_tables(ops) %}
+{% if 'read' in ops %}
+@mcp.tool()
+def list_tables() -> list[str]:
+    """List all available tables in the database."""
+    return sorted(_KNOWN_TABLES)
+{% endif %}
+{% endmacro %}
+
+
+{# ─── Type Mapping Helper ─── #}
+{% macro python_type(col) %}{{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{% endmacro %}

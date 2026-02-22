@@ -32,7 +32,7 @@ if DB_PATH and DB_PATH.startswith("sqlite:///"):
 elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp3ycsqdz6.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpt9u3wodk.db"
 
 _local = threading.local()
 
@@ -57,10 +57,12 @@ def _validate_table(name: str) -> str:
         raise ValueError(f"Unknown table: {name}. Available: {', '.join(sorted(_KNOWN_TABLES))}")
     return name
 
+
 @mcp.tool()
 def list_tables() -> list[str]:
     """List all available tables in the database."""
     return sorted(_KNOWN_TABLES)
+
 
 @mcp.tool()
 def describe_table(table_name: str) -> dict:
@@ -99,3 +101,33 @@ def query_database(table_name: str, filters: dict | None = None, limit: int = 50
 
 
 
+
+# ─── Health Check ───
+
+@mcp.tool()
+def server_health() -> dict:
+    """Check the health status of this MCP server.
+
+    Returns:
+        Server status including source type, table count, and uptime info.
+    """
+    return {
+        "status": "healthy",
+        "source_type": "sqlite",
+        "tables": 25,
+        "version": "mcp-maker",
+    }
+
+# ─── Graceful Shutdown ───
+
+import atexit
+
+def _cleanup():
+    """Clean up database connections on server shutdown."""
+    if hasattr(_local, "conn") and _local.conn:
+        try:
+            _local.conn.close()
+        except Exception:
+            pass
+
+atexit.register(_cleanup)

@@ -286,6 +286,8 @@ def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
     if {{ col.name }} is not None:
         properties["{{ col.description }}"] = {"rich_text": [{"text": {"content": str({{ col.name }})}}]}
     {% endfor %}
+    # Throttle API requests to prevent 429 Too Many Requests
+    _rate_limiter.acquire()
     page = notion.pages.create(
         parent={"database_id": DATABASE_IDS["{{ table.name }}"]},
         properties=properties,

@@ -1,3 +1,4 @@
+{% import "partials/macros.jinja2" as m %}
 # ─── Database Connection (Thread-Safe) ───
 
 DB_PATH = DATABASE_URL
@@ -23,21 +24,11 @@ def _get_connection():
 {% if consolidate %}
 # ─── Consolidated Tools (Large Schema Mode) ───
 
-# Known tables discovered at generation time — prevents SQL injection
-_KNOWN_TABLES = { {% for table in tables %}"{{ table.name }}", {% endfor %} }
+{{ m.consolidated_whitelist(tables) }}
 
-def _validate_table(name: str) -> str:
-    """Validate that a table name is in the known set to prevent SQL injection."""
-    if name not in _KNOWN_TABLES:
-        raise ValueError(f"Unknown table: {name}. Available: {', '.join(sorted(_KNOWN_TABLES))}")
-    return name
+{{ m.consolidated_list_tables(ops) }}
 
 {% if 'read' in ops %}
-@mcp.tool()
-def list_tables() -> list[str]:
-    """List all available tables in the database."""
-    return sorted(_KNOWN_TABLES)
-
 @mcp.tool()
 def describe_table(table_name: str) -> dict:
     """Get the schema (columns and types) for a specific table."""
@@ -136,13 +127,7 @@ def delete_record(table_name: str, filters: dict) -> dict:
 
 {% for table in tables %}
 
-# ═══════════════════════════════════════════════════════
-# Table: {{ table.name }}
-# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
-{% if table.row_count is not none %}
-# Rows: {{ table.row_count }}
-{% endif %}
-# ═══════════════════════════════════════════════════════
+{{ m.table_header(table) }}
 
 
 
@@ -263,20 +248,7 @@ def count_{{ table.name }}() -> int:
 
 
 
-{% if 'read' in ops %}
-@mcp.tool()
-def schema_{{ table.name }}() -> dict:
-    """Get the schema (column names and types) of the '{{ table.name }}' table.
-
-    Returns:
-        Dictionary with column names as keys and types as values.
-    """
-    return {
-        {% for col in table.columns %}
-        "{{ col.name }}": "{{ col.type.value }}",
-        {% endfor %}
-    }
-{% endif %}
+{{ m.schema_tool(table, ops) }}
 
 {% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
 {% if table.primary_key_columns %}

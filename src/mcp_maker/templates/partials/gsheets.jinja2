@@ -143,6 +143,8 @@ def append_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
     }
     for h in headers:
         row_values.append(str(data.get(h, "") or ""))
+    # Throttle API requests to prevent 429 Too Many Requests
+    _rate_limiter.acquire()
     ws.append_row(row_values)
     return {"appended": True, "data": data}
 

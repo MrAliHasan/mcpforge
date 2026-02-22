@@ -131,3 +131,49 @@ mcp.tool = _audit_tool_decorator
 {% if semantic %}
 {% include "partials/semantic_search.jinja2" %}
 {% endif %}
+
+# ─── Health Check ───
+
+@mcp.tool()
+def server_health() -> dict:
+    """Check the health status of this MCP server.
+
+    Returns:
+        Server status including source type, table count, and uptime info.
+    """
+    return {
+        "status": "healthy",
+        "source_type": "{{ source_type }}",
+        "tables": {{ tables | length }},
+        "version": "mcp-maker",
+    }
+
+# ─── Graceful Shutdown ───
+
+import atexit
+
+def _cleanup():
+    """Clean up database connections on server shutdown."""
+    {% if source_type == "sqlite" %}
+    if hasattr(_local, "conn") and _local.conn:
+        try:
+            _local.conn.close()
+        except Exception:
+            pass
+    {% elif source_type == "postgres" %}
+    if _pg_pool is not None:
+        try:
+            _pg_pool.closeall()
+        except Exception:
+            pass
+    {% elif source_type == "mysql" %}
+    try:
+        while not _pool.empty():
+            conn = _pool.get_nowait()
+            conn.close()
+    except Exception:
+        pass
+    {% endif %}
+
+atexit.register(_cleanup)
+

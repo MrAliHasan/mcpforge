@@ -31,20 +31,34 @@ def _build_index_{{ table.name }}():
     if collection.count() > 0:
         return collection
 
-    # Fetch all records
+    # Fetch all records in batches to prevent OOM on large tables
+    rows = []
+    _BATCH_SIZE = 1000
     {% if source_type == "sqlite" %}
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    cursor = conn.execute("SELECT * FROM {{ table.name }}")
-    rows = [dict(row) for row in cursor.fetchall()]
+    _offset = 0
+    while True:
+        cursor = conn.execute(f'SELECT * FROM "{{ table.name }}" LIMIT {_BATCH_SIZE} OFFSET {_offset}')
+        batch = [dict(row) for row in cursor.fetchall()]
+        if not batch:
+            break
+        rows.extend(batch)
+        _offset += _BATCH_SIZE
     conn.close()
     {% elif source_type == "files" %}
     rows = list_{{ table.name }}(limit=100000)
     {% elif source_type in ("postgres", "postgresql") %}
     conn = psycopg2.connect(DATABASE_URL)
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute("SELECT * FROM {{ table.name }}")
-    rows = cursor.fetchall()
+    _offset = 0
+    while True:
+        cursor.execute(f'SELECT * FROM "{{ table.name }}" LIMIT {_BATCH_SIZE} OFFSET {_offset}')
+        batch = cursor.fetchall()
+        if not batch:
+            break
+        rows.extend(batch)
+        _offset += _BATCH_SIZE
     conn.close()
     {% elif source_type == "mysql" %}
     conn = pymysql.connect(
@@ -54,8 +68,14 @@ def _build_index_{{ table.name }}():
         cursorclass=pymysql.cursors.DictCursor,
     )
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM {{ table.name }}")
-    rows = cursor.fetchall()
+    _offset = 0
+    while True:
+        cursor.execute(f'SELECT * FROM `{{ table.name }}` LIMIT {_BATCH_SIZE} OFFSET {_offset}')
+        batch = cursor.fetchall()
+        if not batch:
+            break
+        rows.extend(batch)
+        _offset += _BATCH_SIZE
     conn.close()
     {% elif source_type == "airtable" %}
     rows = list_{{ table.name }}(limit=100000)

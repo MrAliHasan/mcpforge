@@ -20,6 +20,24 @@ from .schema import DataSourceSchema
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 console = Console()
 
+# Required metadata keys for each connector type
+_REQUIRED_METADATA = {
+    "airtable": ["base_id"],
+    "gsheet": ["spreadsheet_id"],
+    "notion": ["database_map"],
+}
+
+
+def _validate_schema_metadata(schema: DataSourceSchema) -> None:
+    """Validate that the schema contains required metadata for its source type."""
+    required = _REQUIRED_METADATA.get(schema.source_type, [])
+    metadata = getattr(schema, "metadata", {}) or {}
+    missing = [key for key in required if key not in metadata]
+    if missing:
+        raise ValueError(
+            f"Schema for '{schema.source_type}' is missing required metadata: {', '.join(missing)}. "
+            f"This usually means the connector didn't provide expected data."
+        )
 
 def generate_server_code(
     schema: DataSourceSchema,
@@ -39,6 +57,9 @@ def generate_server_code(
     """
     if ops is None:
         ops = ["read"]
+
+    # Validate schema has required metadata for the connector type
+    _validate_schema_metadata(schema)
 
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
