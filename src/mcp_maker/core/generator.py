@@ -11,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 from rich.console import Console
 
 from .schema import DataSourceSchema
@@ -19,9 +19,6 @@ from .schema import DataSourceSchema
 # Template directory
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 console = Console()
-
-# Template directory
-TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
 
 def generate_server_code(
@@ -45,7 +42,7 @@ def generate_server_code(
 
     env = Environment(
         loader=FileSystemLoader(str(TEMPLATE_DIR)),
-        autoescape=select_autoescape(),
+        autoescape=False,  # Generating Python code, not HTML
         trim_blocks=True,
         lstrip_blocks=True,
     )
@@ -136,8 +133,8 @@ def write_server(
         consolidate_threshold=consolidate_threshold,
     )
 
-    server_codeFormatted = format_and_verify_code(server_code, filename)
-    autogen_codeFormatted = format_and_verify_code(autogen_code, autogen_filename)
+    server_code_formatted = format_and_verify_code(server_code, filename)
+    autogen_code_formatted = format_and_verify_code(autogen_code, autogen_filename)
 
     os.makedirs(output_dir, exist_ok=True)
     server_path = os.path.join(output_dir, filename)
@@ -146,10 +143,10 @@ def write_server(
     server_created = False
     if not os.path.exists(server_path):
         with open(server_path, "w", encoding="utf-8") as f:
-            f.write(server_codeFormatted)
+            f.write(server_code_formatted)
         server_created = True
 
     with open(autogen_path, "w", encoding="utf-8") as f:
-        f.write(autogen_codeFormatted)
+        f.write(autogen_code_formatted)
 
     return os.path.abspath(server_path), os.path.abspath(autogen_path), server_created

@@ -7,9 +7,7 @@ This file is overwritten every time you run `mcp-maker init`.
 Add your custom tools to `mcp_server.py` instead.
 """
 
-import traceback
 import os
-import sys
 
 # Load connection string from environment to prevent credential exposure in source code
 DATABASE_URL = os.environ.get("DATABASE_URL")
@@ -34,7 +32,7 @@ if DB_PATH and DB_PATH.startswith("sqlite:///"):
 elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpmf7ist8c.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp3ycsqdz6.db"
 
 _local = threading.local()
 
@@ -50,19 +48,24 @@ def _get_connection():
 
 # ─── Consolidated Tools (Large Schema Mode) ───
 
+# Known tables discovered at generation time — prevents SQL injection
+_KNOWN_TABLES = { "table_0", "table_1", "table_10", "table_11", "table_12", "table_13", "table_14", "table_15", "table_16", "table_17", "table_18", "table_19", "table_2", "table_20", "table_21", "table_22", "table_23", "table_24", "table_3", "table_4", "table_5", "table_6", "table_7", "table_8", "table_9",  }
+
+def _validate_table(name: str) -> str:
+    """Validate that a table name is in the known set to prevent SQL injection."""
+    if name not in _KNOWN_TABLES:
+        raise ValueError(f"Unknown table: {name}. Available: {', '.join(sorted(_KNOWN_TABLES))}")
+    return name
+
 @mcp.tool()
 def list_tables() -> list[str]:
     """List all available tables in the database."""
-    conn = _get_connection()
-    try:
-        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        return [row["name"] for row in cursor.fetchall()]
-    except Exception as e:
-        raise RuntimeError(f"list_tables failed: {e}") from e
+    return sorted(_KNOWN_TABLES)
 
 @mcp.tool()
 def describe_table(table_name: str) -> dict:
     """Get the schema (columns and types) for a specific table."""
+    table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
         cursor = conn.execute(f'PRAGMA table_info("{table_name}")')
@@ -73,6 +76,7 @@ def describe_table(table_name: str) -> dict:
 @mcp.tool()
 def query_database(table_name: str, filters: dict | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
     """Query a table with optional exact-match filters (e.g. {"status": "active"})."""
+    table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
         limit = min(limit, 500)

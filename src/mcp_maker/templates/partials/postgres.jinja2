@@ -1,38 +1,48 @@
-# ─── Database Connection Pool ───
+# ─── Database Connection Pool (Lazy Initialization) ───
 
 DSN = DATABASE_URL
-_pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=DSN)
+_pg_pool = None
+
+
+def _get_pool():
+    """Lazily initialize the connection pool on first use."""
+    global _pg_pool
+    if _pg_pool is None:
+        _pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=DSN)
+    return _pg_pool
 
 
 def _get_connection():
     """Get a connection from the pool."""
-    return _pg_pool.getconn()
+    return _get_pool().getconn()
 
 
 def _put_connection(conn):
     """Return a connection to the pool."""
-    _pg_pool.putconn(conn)
+    _get_pool().putconn(conn)
 
 {% if consolidate %}
 # ─── Consolidated Tools (Large Schema Mode) ───
+
+# Known tables discovered at generation time — prevents SQL injection
+_KNOWN_TABLES = { {% for table in tables %}"{{ table.name }}", {% endfor %} }
+
+def _validate_table(name: str) -> str:
+    """Validate that a table name is in the known set to prevent SQL injection."""
+    if name not in _KNOWN_TABLES:
+        raise ValueError(f"Unknown table: {name}. Available: {', '.join(sorted(_KNOWN_TABLES))}")
+    return name
 
 {% if 'read' in ops %}
 @mcp.tool()
 def list_tables() -> list[str]:
     """List all available tables in the database."""
-    conn = _get_connection()
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
-        return [row[0] for row in cursor.fetchall()]
-    except Exception as e:
-        raise RuntimeError(f"list_tables failed: {e}") from e
-    finally:
-        _put_connection(conn)
+    return sorted(_KNOWN_TABLES)
 
 @mcp.tool()
 def describe_table(table_name: str) -> dict:
     """Get the schema (columns and types) for a specific table."""
+    table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
         cursor = conn.cursor()
@@ -46,6 +56,7 @@ def describe_table(table_name: str) -> dict:
 @mcp.tool()
 def query_database(table_name: str, filters: dict | None = None, limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
     """Query a table with optional exact-match filters (e.g. {"status": "active"})."""
+    table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
         limit = min(limit, {{ max_limit }})
@@ -72,6 +83,7 @@ def query_database(table_name: str, filters: dict | None = None, limit: int = {{
 @mcp.tool()
 def insert_record(table_name: str, data: dict) -> dict:
     """Insert a new record into a table."""
+    table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
         columns = [f'"{k}"' for k in data.keys()]
@@ -94,6 +106,7 @@ def insert_record(table_name: str, data: dict) -> dict:
 @mcp.tool()
 def update_record(table_name: str, filters: dict, data: dict) -> list[dict]:
     """Update records in a table matching the exact filters."""
+    table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
         if not filters:
@@ -118,6 +131,7 @@ def update_record(table_name: str, filters: dict, data: dict) -> list[dict]:
 @mcp.tool()
 def delete_record(table_name: str, filters: dict) -> dict:
     """Delete records from a table matching the exact filters."""
+    table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
         if not filters:

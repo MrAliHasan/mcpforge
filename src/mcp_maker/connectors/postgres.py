@@ -2,7 +2,6 @@
 MCP-Maker PostgreSQL Connector — Inspect PostgreSQL databases.
 """
 
-import re
 from urllib.parse import urlparse
 
 from .base import BaseConnector, register_connector

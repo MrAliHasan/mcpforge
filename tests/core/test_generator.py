@@ -215,3 +215,96 @@ class TestGeneratedCodePatterns:
             # Clean up generated file if it exists
             if os.path.isfile("mcp_server.py"):
                 os.unlink("mcp_server.py")
+
+
+class TestSecurityHardening:
+    """Tests to verify that production security hardening is applied."""
+
+    def test_consolidated_mode_has_table_whitelist(self, sample_db):
+        """Generated consolidated-mode code should include _KNOWN_TABLES and _validate_table."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema, consolidate_threshold=1))
+
+        assert "_KNOWN_TABLES" in code
+        assert "_validate_table" in code
+        assert "table_name = _validate_table(table_name)" in code
+
+    def test_consolidated_mode_blocks_unknown_tables(self, sample_db):
+        """Generated consolidated-mode list_tables should return known tables only."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema, consolidate_threshold=1))
+
+        # Should return sorted known tables, not query sqlite_master
+        assert "return sorted(_KNOWN_TABLES)" in code
+        assert "sqlite_master" not in code
+
+    def test_no_dead_imports_in_generated_code(self, sample_db):
+        """Generated code should not contain unused traceback or sys imports."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema))
+
+        assert "import traceback" not in code
+        assert "import sys" not in code
+
+    def test_no_autoescape_corruption(self):
+        """Generated code should not HTML-escape special characters in names."""
+        schema = DataSourceSchema(
+            source_type="sqlite",
+            source_uri="sqlite:///test.db",
+            tables=[
+                Table(
+                    name="items",
+                    columns=[
+                        Column(name="id", type=ColumnType.INTEGER, primary_key=True),
+                        Column(name="price_in_usd", type=ColumnType.FLOAT),
+                    ],
+                    row_count=5,
+                )
+            ],
+        )
+        code = "\n\n".join(generate_server_code(schema))
+
+        # Should be valid Python
+        compile(code, "<generated>", "exec")
+
+        # Should not contain any HTML entities
+        assert "&amp;" not in code
+        assert "&lt;" not in code
+        assert "&gt;" not in code
+
+    def test_postgres_lazy_pool_initialization(self):
+        """Generated Postgres code should use lazy pool initialization."""
+        schema = DataSourceSchema(
+            source_type="postgres",
+            source_uri="postgresql://user:pass@localhost/testdb",
+            tables=[
+                Table(
+                    name="items",
+                    columns=[
+                        Column(name="id", type=ColumnType.INTEGER, primary_key=True),
+                        Column(name="name", type=ColumnType.STRING),
+                    ],
+                    row_count=10,
+                )
+            ],
+        )
+        code = "\n\n".join(generate_server_code(schema))
+
+        assert "_pg_pool = None" in code
+        assert "def _get_pool():" in code
+        # Should NOT crash on import by creating pool at module level
+        assert "ThreadedConnectionPool(minconn=1, maxconn=10, dsn=DSN)" in code
+
+    def test_sqlite_uses_configurable_max_limit(self, sample_db):
+        """Generated SQLite code should use max_limit, not hardcoded 500."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = "\n\n".join(generate_server_code(schema, max_limit=1000))
+
+        # Should use the configured max_limit, not hardcoded 500
+        assert "min(limit, 1000)" in code
+        assert "min(limit, 500)" not in code
+

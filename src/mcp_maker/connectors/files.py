@@ -30,21 +30,7 @@ SUPPORTED_EXTENSIONS = {
 }
 
 
-def _infer_type(value) -> ColumnType:
-    """Infer the column type from a Python value."""
-    if value is None:
-        return ColumnType.STRING
-    if isinstance(value, bool):
-        return ColumnType.BOOLEAN
-    if isinstance(value, int):
-        return ColumnType.INTEGER
-    if isinstance(value, float):
-        return ColumnType.FLOAT
-    if isinstance(value, dict):
-        return ColumnType.JSON
-    if isinstance(value, list):
-        return ColumnType.JSON
-    return ColumnType.STRING
+from .utils import infer_type as _infer_type
 
 
 def _inspect_csv(filepath: str) -> Table:

@@ -23,13 +23,7 @@ from ..core.schema import (
 )
 
 
-def _sanitize_name(name: str) -> str:
-    """Convert a sheet name to a safe Python identifier."""
-    safe = re.sub(r"[^a-zA-Z0-9]", "_", name)
-    safe = re.sub(r"_+", "_", safe).strip("_")
-    if safe and safe[0].isdigit():
-        safe = "_" + safe
-    return safe.lower()
+from .utils import sanitize_name as _sanitize_name, infer_type as _infer_type_value
 
 
 def _infer_type(values: list) -> ColumnType:

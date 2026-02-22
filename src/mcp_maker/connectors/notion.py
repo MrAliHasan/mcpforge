@@ -55,13 +55,7 @@ NOTION_TYPE_MAP = {
 }
 
 
-def _sanitize_name(name: str) -> str:
-    """Convert a Notion property name to a safe Python identifier."""
-    safe = re.sub(r"[^a-zA-Z0-9]", "_", name)
-    safe = re.sub(r"_+", "_", safe).strip("_")
-    if safe and safe[0].isdigit():
-        safe = "_" + safe
-    return safe.lower()
+from .utils import sanitize_name as _sanitize_name
 
 
 def _extract_property_value(prop: dict) -> any:

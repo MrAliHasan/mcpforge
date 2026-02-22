@@ -65,16 +65,7 @@ AIRTABLE_TYPE_MAP = {
 }
 
 
-def _sanitize_name(name: str) -> str:
-    """Convert an Airtable name to a safe Python identifier."""
-    # Replace spaces and special chars with underscores
-    safe = re.sub(r"[^a-zA-Z0-9]", "_", name)
-    # Collapse multiple underscores
-    safe = re.sub(r"_+", "_", safe).strip("_")
-    # Prepend underscore if starts with digit
-    if safe and safe[0].isdigit():
-        safe = "_" + safe
-    return safe.lower()
+from .utils import sanitize_name as _sanitize_name
 
 
 class AirtableConnector(BaseConnector):

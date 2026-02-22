@@ -7,9 +7,7 @@ This file is overwritten every time you run `mcp-maker init`.
 Add your custom tools to `{{ target_filename }}` instead.
 """
 
-import traceback
 import os
-import sys
 
 # Load connection string from environment to prevent credential exposure in source code
 DATABASE_URL = os.environ.get("DATABASE_URL")

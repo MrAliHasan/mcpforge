@@ -98,7 +98,7 @@ def init(
     read_write: bool = typer.Option(
         False,
         "--read-write",
-        help="Generate write tools (INSERT, UPDATE, DELETE) in addition to read tools.",
+        help="[DEPRECATED] Use --ops read,insert,update,delete instead. Generate write tools.",
     ),
     tables: str = typer.Option(
         None,
@@ -194,6 +194,7 @@ def init(
     # Parse ops
     parsed_ops = ["read"]
     if read_write:
+        console.print("  ⚠️  [yellow]--read-write is deprecated.[/yellow] Use [cyan]--ops read,insert,update,delete[/cyan] instead.")
         parsed_ops = ["read", "insert", "update", "delete"]
     if ops:
         parsed_ops = [op.strip().lower() for op in ops.split(",") if op.strip()]
@@ -225,11 +226,11 @@ def init(
             consolidate_threshold=consolidate_threshold,
         )
 
-    # Generate .env.example
+    # Generate .env.example with placeholder (never embed real credentials)
     env_example_path = os.path.join(output, ".env.example")
     with open(env_example_path, "w") as f:
         f.write("# Copy this file to .env and fill in the values\n")
-        f.write(f"DATABASE_URL='{schema.source_uri}'\n")
+        f.write(f"DATABASE_URL='your-connection-string-here'\n")
 
     console.print()
     if server_created:
