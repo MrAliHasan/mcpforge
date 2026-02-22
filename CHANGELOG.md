@@ -4,6 +4,28 @@ All notable changes to MCP-Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-02-23
+
+### Added
+- **Granular Security (`--ops`)**: Control exactly what the LLM can edit with precise `--ops read,insert,update,delete` arrays. 100% template-native conditional compilation.
+- **Cloud API Rate Limiting**: Extensively upgraded the `server.py.jinja2` generation engine to auto-inject a `TokenBucketRateLimiter` securing Cloud endpoints (Notion, Airtable, Sheets) against `429 Too Many Requests` bans.
+- **Google Sheets Connector**: Direct integration with `gsheets://URL` endpoints. Generates `update_cell` tools.
+- **Notion Connector**: Supports Multi-Database URIs natively, handles cursor pagination, auto-parses 20+ Notion property types.
+- **E2E Test Framework**: Deployed a dynamic End-to-End server generation and mock execution testing pipeline in `tests/e2e`.
+
+### Changed
+- **Massive Architectural Refactor**: Obliterated monolithic dependencies. `cli.py` and `test_mcpforge.py` bisected gracefully into modular domain packages.
+- **Test Integrity**: Test suite significantly expanded (88 passing regression checks).
+- Re-architected Open Source Documentation (`CONTRIBUTING.md`) for streamlined Fork/Branch/PR Git workflows.
+
+## [0.2.0] - 2026-02-21
+
+### Added
+- **PostgreSQL Connector**: Fully typed extraction for postgres schema inspection.
+- **MySQL Connector**: Queue-based connection pools supporting `mysql://`.
+- **Airtable Connector**: Auto-generation of formula-based queries and Base Discovery via `mcp-maker bases`.
+- **Semantic Search**: Vector database integrations explicitly enabled via `--semantic`.
+
 ## [0.1.0] - 2026-02-21
 
 ### Added
