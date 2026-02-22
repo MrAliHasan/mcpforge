@@ -6,9 +6,12 @@ Usage:
     mcp-maker serve             Run the generated MCP server
     mcp-maker inspect <source>  Preview what would be generated (dry run)
     mcp-maker list-connectors   Show available connectors
+    mcp-maker config            Generate Claude Desktop config
 """
 
+import json
 import os
+import platform
 import subprocess
 import sys
 
@@ -33,6 +36,17 @@ def _load_connectors():
     from .connectors import sqlite  # noqa: F401
     from .connectors import files  # noqa: F401
 
+    # Optional connectors — only load if dependencies available
+    try:
+        from .connectors import postgres  # noqa: F401
+    except ImportError:
+        pass
+
+    try:
+        from .connectors import mysql  # noqa: F401
+    except ImportError:
+        pass
+
 
 @app.command()
 def init(
@@ -50,13 +64,20 @@ def init(
         "--filename", "-f",
         help="Name of the generated server file.",
     ),
+    read_write: bool = typer.Option(
+        False,
+        "--read-write",
+        help="Generate write tools (INSERT, UPDATE, DELETE) in addition to read tools.",
+    ),
 ):
     """⚒️  Generate an MCP server from a data source.
 
     Examples:
         mcp-maker init sqlite:///my.db
         mcp-maker init ./data/
-        mcp-maker init my_database.sqlite
+        mcp-maker init postgres://user:pass@localhost/mydb
+        mcp-maker init mysql://user:pass@localhost/mydb
+        mcp-maker init sqlite:///my.db --read-write
     """
     _load_connectors()
     from .connectors.base import get_connector
@@ -79,7 +100,7 @@ def init(
     with console.status(f"[bold green]Validating {connector.source_type} source..."):
         try:
             connector.validate()
-        except (FileNotFoundError, ConnectionError, ValueError) as e:
+        except (FileNotFoundError, ConnectionError, ValueError, ImportError) as e:
             console.print(f"\n[red]Validation failed:[/red] {e}")
             raise typer.Exit(code=1)
 
@@ -93,14 +114,23 @@ def init(
     _print_schema_summary(schema)
 
     # Step 4: Generate server
+    read_only = not read_write
     with console.status("[bold green]Generating MCP server..."):
-        output_path = write_server(schema, output_dir=output, filename=filename)
+        output_path = write_server(
+            schema,
+            output_dir=output,
+            filename=filename,
+            read_only=read_only,
+        )
 
     console.print()
     console.print(f"  🎉 Generated: [bold green]{output_path}[/bold green]")
+    if read_write:
+        console.print("  📝 [yellow]Write operations enabled[/yellow] (INSERT, UPDATE, DELETE)")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
     console.print(f"    [cyan]mcp-maker serve[/cyan]           — Run the server")
+    console.print(f"    [cyan]mcp-maker config[/cyan]          — Generate Claude Desktop config")
     console.print(f"    [cyan]python {filename}[/cyan]  — Run directly")
     console.print()
 
@@ -119,9 +149,13 @@ def inspect(
     console.print()
 
     with console.status("[bold green]Inspecting data source..."):
-        connector = get_connector(source)
-        connector.validate()
-        schema = connector.inspect()
+        try:
+            connector = get_connector(source)
+            connector.validate()
+            schema = connector.inspect()
+        except (ValueError, FileNotFoundError, ConnectionError, ImportError) as e:
+            console.print(f"\n[red]Error:[/red] {e}")
+            raise typer.Exit(code=1)
 
     _print_schema_summary(schema)
 
@@ -138,6 +172,12 @@ def inspect(
             console.print(f"    • search_{table.name}(query, limit)")
         console.print(f"    • count_{table.name}()")
         console.print(f"    • schema_{table.name}()")
+        console.print(f"    [dim]With --read-write:[/dim]")
+        if table.primary_key_columns:
+            pk = table.primary_key_columns[0]
+            console.print(f"    • insert_{table.name}(...)")
+            console.print(f"    • update_{table.name}_by_{pk.name}(...)")
+            console.print(f"    • delete_{table.name}_by_{pk.name}({pk.name})")
 
     for resource in schema.resources:
         console.print(f"\n  📄 [cyan]{resource.name}[/cyan]:")
@@ -189,21 +229,147 @@ def list_connectors():
     table.add_column("Scheme", style="cyan", no_wrap=True)
     table.add_column("Connector", style="green")
     table.add_column("Example URI")
+    table.add_column("Status", style="yellow")
 
     examples = {
         "sqlite": "sqlite:///my_database.db",
         "files": "./data/",
         "postgres": "postgres://user:pass@localhost/mydb",
+        "postgresql": "postgres://user:pass@localhost/mydb",
         "mysql": "mysql://user:pass@localhost/mydb",
-        "airtable": "airtable://appXXXX",
     }
 
-    for scheme, cls in sorted(_CONNECTOR_REGISTRY.items()):
+    # Always show all connectors, even if not installed
+    all_connectors = {
+        "sqlite": ("SQLiteConnector", True),
+        "files": ("FileConnector", True),
+        "postgres": ("PostgresConnector", "postgres" in _CONNECTOR_REGISTRY),
+        "mysql": ("MySQLConnector", "mysql" in _CONNECTOR_REGISTRY),
+    }
+
+    for scheme, (cls_name, available) in all_connectors.items():
         example = examples.get(scheme, f"{scheme}://...")
-        table.add_row(scheme, cls.__name__, example)
+        status = "✅ Installed" if available else "📦 pip install mcp-maker[" + scheme + "]"
+        table.add_row(scheme, cls_name, example, status)
 
     console.print(table)
     console.print()
+
+
+@app.command()
+def config(
+    server_file: str = typer.Option(
+        "mcp_server.py",
+        "--file", "-f",
+        help="Path to the generated server file.",
+    ),
+    name: str = typer.Option(
+        "my-data",
+        "--name", "-n",
+        help="Name for the MCP server in Claude Desktop config.",
+    ),
+    install: bool = typer.Option(
+        False,
+        "--install",
+        help="Auto-write to Claude Desktop config file.",
+    ),
+):
+    """🔧 Generate Claude Desktop configuration.
+
+    Outputs the JSON config needed to connect your generated MCP server
+    to Claude Desktop. Use --install to auto-write it.
+
+    Examples:
+        mcp-maker config
+        mcp-maker config --name my-db --install
+    """
+    server_path = os.path.abspath(server_file)
+
+    if not os.path.isfile(server_path):
+        console.print(
+            f"\n[red]Error:[/red] Server file not found: {server_file}\n"
+            f"Run [cyan]mcp-maker init <source>[/cyan] first.\n"
+        )
+        raise typer.Exit(code=1)
+
+    console.print()
+    console.print(
+        Panel.fit("🔧 [bold cyan]Claude Desktop Config[/bold cyan]", subtitle="v" + __version__)
+    )
+
+    server_config = {
+        "command": sys.executable,
+        "args": [server_path],
+    }
+
+    if install:
+        config_path = _get_claude_config_path()
+        if config_path is None:
+            console.print(
+                "\n[red]Error:[/red] Could not determine Claude Desktop config path.\n"
+                "Please add the config manually.\n"
+            )
+            install = False
+        else:
+            # Read existing config or create new
+            if os.path.isfile(config_path):
+                with open(config_path, "r") as f:
+                    try:
+                        existing = json.load(f)
+                    except json.JSONDecodeError:
+                        existing = {}
+            else:
+                existing = {}
+
+            if "mcpServers" not in existing:
+                existing["mcpServers"] = {}
+
+            existing["mcpServers"][name] = server_config
+
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, "w") as f:
+                json.dump(existing, f, indent=2)
+
+            console.print(f"  ✅ Written to: [green]{config_path}[/green]")
+            console.print(f"  📝 Server name: [cyan]{name}[/cyan]")
+            console.print()
+            console.print("  [bold yellow]Restart Claude Desktop[/bold yellow] to activate.\n")
+            return
+
+    # Just print the config
+    snippet = {
+        "mcpServers": {
+            name: server_config,
+        }
+    }
+
+    config_path = _get_claude_config_path()
+    console.print()
+    console.print(f"  Add this to your Claude Desktop config:")
+    if config_path:
+        console.print(f"  📁 [dim]{config_path}[/dim]")
+    console.print()
+    console.print_json(json.dumps(snippet, indent=2))
+    console.print()
+    console.print(f"  [dim]Or run [cyan]mcp-maker config --install[/cyan] to auto-write it.[/dim]\n")
+
+
+def _get_claude_config_path() -> str | None:
+    """Get the Claude Desktop config file path for the current OS."""
+    system = platform.system()
+    if system == "Darwin":  # macOS
+        return os.path.expanduser(
+            "~/Library/Application Support/Claude/claude_desktop_config.json"
+        )
+    elif system == "Windows":
+        appdata = os.environ.get("APPDATA", "")
+        if appdata:
+            return os.path.join(appdata, "Claude", "claude_desktop_config.json")
+    elif system == "Linux":
+        return os.path.expanduser(
+            "~/.config/Claude/claude_desktop_config.json"
+        )
+    return None
 
 
 @app.callback()

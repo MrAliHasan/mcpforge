@@ -331,3 +331,162 @@ class TestCodeGenerator:
 
         assert 'if __name__ == "__main__":' in code
         assert "mcp.run()" in code
+
+    def test_generate_read_only_by_default(self, sample_db):
+        """Verify that by default, write tools are NOT generated."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = generate_server_code(schema)
+
+        assert "def insert_users" not in code
+        assert "def update_users" not in code
+        assert "def delete_users" not in code
+
+    def test_generate_read_write_mode(self, sample_db):
+        """Verify that write tools ARE generated with read_only=False."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = generate_server_code(schema, read_only=False)
+
+        # Should be valid Python
+        compile(code, "<generated>", "exec")
+
+        # Should contain write tools
+        assert "def insert_users" in code
+        assert "def update_users_by_id" in code
+        assert "def delete_users_by_id" in code
+
+        # Should still have read tools
+        assert "def list_users" in code
+        assert "def get_users_by_id" in code
+        assert "def search_users" in code
+
+    def test_branding_in_generated_code(self, sample_db):
+        """Verify template uses MCP-Maker branding, not MCPForge."""
+        connector = SQLiteConnector(f"sqlite:///{sample_db}")
+        schema = connector.inspect()
+        code = generate_server_code(schema)
+
+        assert "MCP-Maker" in code
+        assert "mcp-maker" in code
+        # Should NOT contain old branding
+        assert "MCPForge" not in code
+        assert "mcpforge" not in code
+
+
+# ─── PostgreSQL Connector Tests ───
+
+
+class TestPostgresConnector:
+    def test_source_type(self):
+        from mcp_maker.connectors.postgres import PostgresConnector
+        connector = PostgresConnector("postgres://user:pass@localhost/testdb")
+        assert connector.source_type == "postgres"
+
+    def test_get_dsn_normalization(self):
+        from mcp_maker.connectors.postgres import PostgresConnector
+        connector = PostgresConnector("postgres://user:pass@localhost/testdb")
+        dsn = connector._get_dsn()
+        assert dsn.startswith("postgresql://")
+
+    def test_get_dsn_postgresql_scheme(self):
+        from mcp_maker.connectors.postgres import PostgresConnector
+        connector = PostgresConnector("postgresql://user:pass@localhost/testdb")
+        dsn = connector._get_dsn()
+        assert dsn == "postgresql://user:pass@localhost/testdb"
+
+    def test_parse_schema_default(self):
+        from mcp_maker.connectors.postgres import PostgresConnector
+        connector = PostgresConnector("postgres://user:pass@localhost/testdb")
+        assert connector._parse_schema() == "public"
+
+    def test_parse_schema_custom(self):
+        from mcp_maker.connectors.postgres import PostgresConnector
+        connector = PostgresConnector("postgres://user:pass@localhost/testdb?schema=myschema")
+        assert connector._parse_schema() == "myschema"
+
+    def test_validate_missing_psycopg2(self, monkeypatch):
+        """Verify graceful error when psycopg2 is not installed."""
+        from mcp_maker.connectors.postgres import PostgresConnector
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "psycopg2":
+                raise ImportError("No module named 'psycopg2'")
+            return real_import(name, *args, **kwargs)
+
+        connector = PostgresConnector("postgres://user:pass@localhost/testdb")
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+        with pytest.raises(ImportError, match="psycopg2"):
+            connector.validate()
+
+    def test_registration(self):
+        from mcp_maker.connectors.base import _CONNECTOR_REGISTRY
+        from mcp_maker.connectors.postgres import PostgresConnector
+        assert _CONNECTOR_REGISTRY.get("postgres") == PostgresConnector
+        assert _CONNECTOR_REGISTRY.get("postgresql") == PostgresConnector
+
+
+# ─── MySQL Connector Tests ───
+
+
+class TestMySQLConnector:
+    def test_source_type(self):
+        from mcp_maker.connectors.mysql import MySQLConnector
+        connector = MySQLConnector("mysql://user:pass@localhost:3306/testdb")
+        assert connector.source_type == "mysql"
+
+    def test_parse_uri(self):
+        from mcp_maker.connectors.mysql import MySQLConnector
+        connector = MySQLConnector("mysql://myuser:mypass@dbhost:3307/mydb")
+        params = connector._parse_uri()
+        assert params["host"] == "dbhost"
+        assert params["port"] == 3307
+        assert params["user"] == "myuser"
+        assert params["password"] == "mypass"
+        assert params["database"] == "mydb"
+
+    def test_parse_uri_defaults(self):
+        from mcp_maker.connectors.mysql import MySQLConnector
+        connector = MySQLConnector("mysql:///testdb")
+        params = connector._parse_uri()
+        assert params["host"] == "localhost"
+        assert params["port"] == 3306
+        assert params["user"] == "root"
+        assert params["database"] == "testdb"
+
+    def test_validate_missing_pymysql(self, monkeypatch):
+        """Verify graceful error when pymysql is not installed."""
+        from mcp_maker.connectors.mysql import MySQLConnector
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "pymysql":
+                raise ImportError("No module named 'pymysql'")
+            return real_import(name, *args, **kwargs)
+
+        connector = MySQLConnector("mysql://user:pass@localhost/testdb")
+        monkeypatch.setattr(builtins, "__import__", mock_import)
+        with pytest.raises(ImportError, match="pymysql"):
+            connector.validate()
+
+    def test_registration(self):
+        from mcp_maker.connectors.base import _CONNECTOR_REGISTRY
+        from mcp_maker.connectors.mysql import MySQLConnector
+        assert _CONNECTOR_REGISTRY.get("mysql") == MySQLConnector
+
+
+# ─── Config Command Tests ───
+
+
+class TestConfigCommand:
+    def test_claude_config_path_detection(self):
+        """Verify config path detection returns a string."""
+        from mcp_maker.cli import _get_claude_config_path
+        path = _get_claude_config_path()
+        # On macOS/Linux/Windows, should return a path
+        assert path is not None
+        assert "claude_desktop_config.json" in path
+

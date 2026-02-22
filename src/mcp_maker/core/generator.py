@@ -16,11 +16,13 @@ from .schema import DataSourceSchema
 TEMPLATE_DIR = Path(__file__).parent.parent / "templates"
 
 
-def generate_server_code(schema: DataSourceSchema) -> str:
+def generate_server_code(schema: DataSourceSchema, read_only: bool = True) -> str:
     """Generate a complete MCP server Python file from a schema.
 
     Args:
         schema: The inspected data source schema.
+        read_only: If True, only generate read tools. If False, also
+            generate insert/update/delete tools.
 
     Returns:
         A string containing valid Python code for an MCP server.
@@ -40,6 +42,7 @@ def generate_server_code(schema: DataSourceSchema) -> str:
         source_uri=schema.source_uri,
         tables=schema.tables,
         resources=schema.resources,
+        read_only=read_only,
     )
 
 
@@ -47,6 +50,7 @@ def write_server(
     schema: DataSourceSchema,
     output_dir: str = ".",
     filename: str = "mcp_server.py",
+    read_only: bool = True,
 ) -> str:
     """Generate and write the MCP server file to disk.
 
@@ -54,11 +58,12 @@ def write_server(
         schema: The inspected data source schema.
         output_dir: Directory to write the server file to.
         filename: Name of the generated server file.
+        read_only: If True, only generate read tools.
 
     Returns:
         The absolute path to the generated file.
     """
-    code = generate_server_code(schema)
+    code = generate_server_code(schema, read_only=read_only)
     output_path = os.path.join(output_dir, filename)
     os.makedirs(output_dir, exist_ok=True)
 
