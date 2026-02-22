@@ -1,0 +1,96 @@
+# ─── File Data Source ───
+
+DATA_DIR = "{{ source_uri }}"
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# File: {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List records from the '{{ table.name }}' dataset.
+
+    Args:
+        limit: Maximum rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of rows to skip for pagination.
+
+    Returns:
+        List of records as dictionaries.
+    """
+    limit = min(limit, {{ max_limit }})
+    filepath = os.path.join(DATA_DIR, "{{ table.name }}.csv")
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8-sig") as f:
+            reader = csv.DictReader(f)
+            rows = list(reader)
+        return rows[offset:offset + limit]
+
+    filepath = os.path.join(DATA_DIR, "{{ table.name }}.json")
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data[offset:offset + limit]
+        return [data]
+
+    return []
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.name }}' dataset for matching records.
+
+    Args:
+        query: Text to search for (case-insensitive, matches any field).
+        limit: Maximum results to return.
+
+    Returns:
+        List of matching records.
+    """
+    all_rows = list_{{ table.name }}(limit=10000)
+    query_lower = query.lower()
+    results = []
+    for row in all_rows:
+        for value in row.values():
+            if query_lower in str(value).lower():
+                results.append(row)
+                break
+        if len(results) >= limit:
+            break
+    return results
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of records in the '{{ table.name }}' dataset."""
+    return len(list_{{ table.name }}(limit=100000))
+{% endif %}
+
+{% endfor %}
+
+{% for resource in resources %}
+@mcp.resource("{{ resource.name }}://content")
+def read_{{ resource.name | replace('-', '_') | replace(' ', '_') }}() -> str:
+    """Read the contents of the '{{ resource.name }}' file.
+
+    Returns:
+        The full text content of the file.
+    """
+    with open("{{ resource.uri }}", "r", encoding="utf-8") as f:
+        return f.read()
+
+{% endfor %}

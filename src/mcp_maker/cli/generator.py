@@ -115,6 +115,16 @@ def init(
         "--semantic",
         help="Generate semantic (vector) search tools using ChromaDB. Requires: pip install mcp-maker[semantic]",
     ),
+    default_limit: int = typer.Option(
+        50,
+        "--default-limit",
+        help="Default number of records to return for list tools.",
+    ),
+    max_limit: int = typer.Option(
+        500,
+        "--max-limit",
+        help="Maximum number of records allowed per request.",
+    ),
 ):
     """⚒️  Generate an MCP server from a data source.
 
@@ -199,6 +209,8 @@ def init(
             filename=filename,
             ops=parsed_ops,
             semantic=semantic,
+            default_limit=default_limit,
+            max_limit=max_limit,
         )
 
     console.print()

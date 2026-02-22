@@ -1,0 +1,265 @@
+# ─── Database Connection (Thread-Safe) ───
+
+DB_PATH = "{{ schema.metadata.get('db_path', source_uri) }}"
+_local = threading.local()
+
+
+def _get_connection():
+    """Get a thread-local SQLite connection (reused across calls)."""
+    if not hasattr(_local, "conn") or _local.conn is None:
+        conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")  # Better concurrent read performance
+        _local.conn = conn
+    return _local.conn
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Table: {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List rows from the '{{ table.name }}' table.
+
+    Args:
+        limit: Maximum number of rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of rows to skip for pagination.
+
+    Returns:
+        List of {{ table.name }} records as dictionaries.
+    """
+    try:
+        limit = min(limit, 500)
+        conn = _get_connection()
+        cursor = conn.execute(
+            'SELECT * FROM "{{ table.name }}" LIMIT ? OFFSET ?',
+            (limit, offset),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+
+{% if table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
+    """Get a single row from '{{ table.name }}' by its {{ pk.name }}.
+
+    Args:
+        {{ pk.name }}: The {{ pk.name }} of the record to retrieve.
+
+    Returns:
+        The matching record as a dictionary, or None if not found.
+    """
+    try:
+        conn = _get_connection()
+        cursor = conn.execute(
+            'SELECT * FROM "{{ table.name }}" WHERE "{{ pk.name }}" = ?',
+            ({{ pk.name }},),
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    except Exception as e:
+        raise RuntimeError(f"get_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+{% endif %}
+
+{% endif %}
+
+{% if table.searchable_columns %}
+{% set search_col = table.searchable_columns[0] %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.name }}' table by matching against text columns.
+
+    This uses LIKE pattern matching (case-insensitive). For large tables,
+    consider using the semantic_search tool instead for better performance.
+
+    Args:
+        query: Search text to match (case-insensitive).
+        limit: Maximum results to return (default: {{ default_limit }}).
+
+    Returns:
+        List of matching records.
+    """
+    try:
+        limit = min(limit, {{ max_limit }})
+        conn = _get_connection()
+        conditions = []
+        params = []
+        {% for col in table.searchable_columns %}
+        {% if col.type.value == 'string' %}
+        conditions.append('"{{ col.name }}" LIKE ?')
+        params.append(f"%{query}%")
+        {% endif %}
+        {% endfor %}
+
+        if not conditions:
+            return []
+
+        where_clause = " OR ".join(conditions)
+        cursor = conn.execute(
+            f'SELECT * FROM "{{ table.name }}" WHERE {where_clause} LIMIT ?',
+            (*params, limit),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+{% endif %}
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of rows in the '{{ table.name }}' table.
+
+    Returns:
+        Total row count.
+    """
+    try:
+        conn = _get_connection()
+        cursor = conn.execute('SELECT COUNT(*) as cnt FROM "{{ table.name }}"')
+        return cursor.fetchone()["cnt"]
+    except Exception as e:
+        raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the schema (column names and types) of the '{{ table.name }}' table.
+
+    Returns:
+        Dictionary with column names as keys and types as values.
+    """
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
+{% endif %}
+
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
+{% if table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
+    """Insert a new row into the '{{ table.name }}' table.
+
+    Returns:
+        The inserted record with its generated {{ pk.name }}.
+    """
+    try:
+        conn = _get_connection()
+        columns = []
+        values = []
+        {% for col in table.columns if not col.primary_key %}
+        if {{ col.name }} is not None:
+            columns.append('"{{ col.name }}"')
+            values.append({{ col.name }})
+        {% endfor %}
+
+        placeholders = ", ".join(["?" for _ in values])
+        col_names = ", ".join(columns)
+        cursor = conn.execute(
+            f'INSERT INTO "{{ table.name }}" ({col_names}) VALUES ({placeholders})',
+            values,
+        )
+        conn.commit()
+        new_id = cursor.lastrowid
+        return get_{{ table.name }}_by_{{ pk.name }}(new_id)
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+
+
+{% if 'update' in ops %}
+@mcp.tool()
+def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, {% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }} | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
+    """Update an existing row in the '{{ table.name }}' table.
+
+    Args:
+        {{ pk.name }}: The {{ pk.name }} of the record to update.
+
+    Returns:
+        The updated record, or None if not found.
+    """
+    try:
+        conn = _get_connection()
+        updates = []
+        values = []
+        {% for col in table.columns if not col.primary_key %}
+        if {{ col.name }} is not None:
+            updates.append('"{{ col.name }}" = ?')
+            values.append({{ col.name }})
+        {% endfor %}
+
+        if not updates:
+            return get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }})
+
+        set_clause = ", ".join(updates)
+        values.append({{ pk.name }})
+        conn.execute(
+            f'UPDATE "{{ table.name }}" SET {set_clause} WHERE "{{ pk.name }}" = ?',
+            values,
+        )
+        conn.commit()
+        return get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }})
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"update_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+{% endif %}
+
+
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
+    """Delete a row from the '{{ table.name }}' table.
+
+    Args:
+        {{ pk.name }}: The {{ pk.name }} of the record to delete.
+
+    Returns:
+        A confirmation with the number of rows deleted.
+    """
+    try:
+        conn = _get_connection()
+        cursor = conn.execute(
+            'DELETE FROM "{{ table.name }}" WHERE "{{ pk.name }}" = ?',
+            ({{ pk.name }},),
+        )
+        conn.commit()
+        deleted = cursor.rowcount
+        return {"deleted": deleted, "{{ pk.name }}": {{ pk.name }}}
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+{% endif %}
+
+{% endif %}
+{% endif %}
+{% endfor %}

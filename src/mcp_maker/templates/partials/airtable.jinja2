@@ -1,0 +1,346 @@
+# ─── Airtable Connection ───
+
+import os
+from pyairtable import Api
+
+AIRTABLE_API_KEY = os.environ.get("AIRTABLE_API_KEY", os.environ.get("AIRTABLE_TOKEN", ""))
+BASE_ID = "{{ schema.metadata.get('base_id', '') }}"
+
+if not AIRTABLE_API_KEY:
+    raise RuntimeError(
+        "AIRTABLE_API_KEY or AIRTABLE_TOKEN environment variable is required. "
+        "Get a token from: https://airtable.com/create/tokens"
+    )
+
+api = Api(AIRTABLE_API_KEY)
+base = api.base(BASE_ID)
+
+# Table name mapping (safe name -> original Airtable name)
+TABLE_NAMES = {
+    {% for table in tables %}
+    "{{ table.name }}": "{{ table.description }}",
+    {% endfor %}
+}
+
+# View name mapping per table
+TABLE_VIEWS = {
+    {% for table in tables %}
+    {% set views = schema.metadata.get('table_views_map', {}).get(table.name, []) %}
+    "{{ table.name }}": {
+        {% for view in views %}
+        "{{ view.name }}": "{{ view.original }}",
+        {% endfor %}
+    },
+    {% endfor %}
+}
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Table: {{ table.description }} (as {{ table.name }})
+# Fields: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+{% set views = schema.metadata.get('table_views_map', {}).get(table.name, []) %}
+{% if views %}
+# Views: {{ views | map(attribute='original') | join(', ') }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+# Field name mapping for this table
+_{{ table.name }}_fields = {
+    {% for col in table.columns %}
+    "{{ col.name }}": "{{ col.description }}",
+    {% endfor %}
+}
+_{{ table.name }}_fields_rev = {v: k for k, v in _{{ table.name }}_fields.items()}
+
+
+def _normalize_{{ table.name }}(record: dict) -> dict:
+    """Convert an Airtable record to a flat dict with safe field names."""
+    fields = record.get("fields", {})
+    result = {"record_id": record.get("id", "")}
+    for safe_name, original_name in _{{ table.name }}_fields.items():
+        result[safe_name] = fields.get(original_name)
+    return result
+
+
+def _to_airtable_{{ table.name }}(data: dict) -> dict:
+    """Convert a dict with safe field names back to Airtable field names."""
+    fields = {}
+    for safe_name, value in data.items():
+        if safe_name == "record_id":
+            continue
+        if value is not None and safe_name in _{{ table.name }}_fields:
+            fields[_{{ table.name }}_fields[safe_name]] = value
+    return fields
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(
+    limit: int = {{ default_limit }},
+    offset: int = 0,
+    sort_field: str | None = None,
+    sort_direction: str = "asc",
+) -> list[dict]:
+    """List records from the '{{ table.description }}' table in Airtable.
+
+    Args:
+        limit: Maximum records to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of records to skip for pagination.
+        sort_field: Field name to sort by (use safe names like 'name', 'email').
+        sort_direction: Sort direction — 'asc' or 'desc'.
+    """
+    limit = min(limit, {{ max_limit }})
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+
+    kwargs = {"max_records": offset + limit}
+    if sort_field and sort_field in _{{ table.name }}_fields:
+        original_field = _{{ table.name }}_fields[sort_field]
+        kwargs["sort"] = [original_field] if sort_direction == "asc" else ["-" + original_field]
+
+    records = tbl.all(**kwargs)
+    normalized = [_normalize_{{ table.name }}(r) for r in records]
+    return normalized[offset:offset + limit]
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def get_{{ table.name }}_by_record_id(record_id: str) -> dict | None:
+    """Get a single record from '{{ table.description }}' by its Airtable record ID.
+
+    Args:
+        record_id: The Airtable record ID (e.g. 'recXXXXXXXX').
+    """
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
+        record = tbl.get(record_id)
+        return _normalize_{{ table.name }}(record)
+    except Exception:
+        return None
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search '{{ table.description }}' by matching against text fields.
+
+    Args:
+        query: Search text (case-insensitive, matches any text field).
+        limit: Maximum results to return.
+    """
+    all_records = list_{{ table.name }}(limit=10000)
+    query_lower = query.lower()
+    results = []
+    for record in all_records:
+        for value in record.values():
+            if value and query_lower in str(value).lower():
+                results.append(record)
+                break
+        if len(results) >= limit:
+            break
+    return results
+{% endif %}
+
+
+@mcp.tool()
+def filter_{{ table.name }}(formula: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Filter records from '{{ table.description }}' using an Airtable formula.
+
+    This is THE most powerful query tool — it uses Airtable's native formula
+    language for precise filtering. Use ORIGINAL Airtable field names in formulas.
+
+    Args:
+        formula: An Airtable formula string. Examples:
+            - '{Status} = "Active"'
+            - 'AND({Age} > 25, {City} = "NYC")'
+            - 'FIND("python", LOWER({Skills}))'
+            - '{Created} > "2024-01-01"'
+            - 'NOT({Email} = BLANK())'
+            - 'OR({Priority} = "High", {Priority} = "Critical")'
+        limit: Maximum results (default: {{ default_limit }}, max: {{ max_limit }}).
+
+    Available fields (safe_name -> Airtable name):
+        {% for col in table.columns %}
+        {{ col.name }} -> {{ col.description }}
+        {% endfor %}
+    """
+    limit = min(limit, {{ max_limit }})
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    records = tbl.all(formula=formula, max_records=limit)
+    return [_normalize_{{ table.name }}(r) for r in records]
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of records in '{{ table.description }}'."""
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    records = tbl.all(fields=[])
+    return len(records)
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the schema of the '{{ table.description }}' table.
+
+    Returns field names, types, and available options for select fields.
+    """
+    {% set field_opts = schema.metadata.get('field_options_map', {}).get(table.name, {}) %}
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": {
+            "type": "{{ col.type.value }}",
+            "airtable_name": "{{ col.description }}",
+            {% if col.name in field_opts %}
+            "options": {{ field_opts[col.name] }},
+            {% endif %}
+        },
+        {% endfor %}
+    }
+{% endif %}
+
+
+{% set views = schema.metadata.get('table_views_map', {}).get(table.name, []) %}
+{% if views %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}_views() -> list[dict]:
+    """List all available views for the '{{ table.description }}' table.
+
+    Views in Airtable are pre-configured filters and sorts.
+    Use list_{{ table.name }}_by_view() to fetch records through a specific view.
+    """
+    return [
+        {% for view in views %}
+        {"name": "{{ view.name }}", "airtable_name": "{{ view.original }}", "type": "{{ view.type }}"},
+        {% endfor %}
+    ]
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}_by_view(view_name: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """List records from '{{ table.description }}' through a specific Airtable view.
+
+    Views apply pre-configured filters, sorts, and field visibility.
+    Call list_{{ table.name }}_views() first to see available views.
+
+    Args:
+        view_name: The view name (use safe names from list_views).
+            Available: {{ views | map(attribute='name') | join(', ') }}
+        limit: Maximum records to return.
+    """
+    limit = min(limit, {{ max_limit }})
+    views_map = TABLE_VIEWS["{{ table.name }}"]
+    original_view = views_map.get(view_name, view_name)
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    records = tbl.all(view=original_view, max_records=limit)
+    return [_normalize_{{ table.name }}(r) for r in records]
+{% endif %}
+
+{% endif %}
+
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
+
+@mcp.tool()
+def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
+    """Create a new record in the '{{ table.description }}' table.
+
+    Pass field values using safe names. All fields are optional.
+
+    Args:
+        {% for col in table.columns %}
+        {{ col.name }}: Value for '{{ col.description }}'.
+        {% endfor %}
+
+    Returns:
+        The newly created record with its Airtable record_id.
+    """
+    data = {}
+    {% for col in table.columns %}
+    if {{ col.name }} is not None:
+        data["{{ col.name }}"] = {{ col.name }}
+    {% endfor %}
+    fields = _to_airtable_{{ table.name }}(data)
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    record = tbl.create(fields)
+    return _normalize_{{ table.name }}(record)
+
+
+
+{% if 'update' in ops %}
+@mcp.tool()
+def update_{{ table.name }}(record_id: str, {% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
+    """Update an existing record in '{{ table.description }}'.
+
+    Only provided (non-None) fields will be updated.
+
+    Args:
+        record_id: The Airtable record ID (e.g. 'recXXXXXXXX').
+        {% for col in table.columns %}
+        {{ col.name }}: New value for '{{ col.description }}'.
+        {% endfor %}
+
+    Returns:
+        The updated record, or None if not found.
+    """
+    data = {}
+    {% for col in table.columns %}
+    if {{ col.name }} is not None:
+        data["{{ col.name }}"] = {{ col.name }}
+    {% endfor %}
+    if not data:
+        return get_{{ table.name }}_by_record_id(record_id)
+    fields = _to_airtable_{{ table.name }}(data)
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
+        record = tbl.update(record_id, fields)
+        return _normalize_{{ table.name }}(record)
+    except Exception:
+        return None
+{% endif %}
+
+
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def delete_{{ table.name }}(record_id: str) -> dict:
+    """Delete a record from '{{ table.description }}'.
+
+    Args:
+        record_id: The Airtable record ID to delete.
+
+    Returns:
+        Confirmation with the deleted record ID.
+    """
+    tbl = base.table(TABLE_NAMES["{{ table.name }}"])
+    try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
+        tbl.delete(record_id)
+        return {"deleted": True, "record_id": record_id}
+    except Exception as e:
+        return {"deleted": False, "record_id": record_id, "error": str(e)}
+{% endif %}
+
+{% endif %}
+{% endfor %}

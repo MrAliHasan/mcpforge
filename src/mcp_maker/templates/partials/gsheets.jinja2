@@ -1,0 +1,177 @@
+# ─── Google Sheets Connection ───
+
+import os
+import gspread
+
+_CREDS_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "")
+_CREDS_JSON = os.environ.get("GOOGLE_CREDENTIALS_JSON", "")
+
+if _CREDS_FILE and os.path.isfile(_CREDS_FILE):
+    gc = gspread.service_account(filename=_CREDS_FILE)
+elif _CREDS_JSON:
+    import json as _json
+    import tempfile as _tempfile
+    _creds = _json.loads(_CREDS_JSON)
+    _tf = _tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    _json.dump(_creds, _tf)
+    _tf.close()
+    gc = gspread.service_account(filename=_tf.name)
+else:
+    gc = gspread.service_account()
+
+SPREADSHEET_ID = "{{ schema.metadata.get('spreadsheet_id', '') }}"
+spreadsheet = gc.open_by_key(SPREADSHEET_ID)
+
+# Sheet name mapping (safe name -> original sheet tab name)
+SHEET_NAMES = {
+    {% for table in tables %}
+    "{{ table.name }}": "{{ table.description }}",
+    {% endfor %}
+}
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Sheet: {{ table.description }} (as {{ table.name }})
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+_{{ table.name }}_fields = {
+    {% for col in table.columns %}
+    "{{ col.name }}": "{{ col.description }}",
+    {% endfor %}
+}
+_{{ table.name }}_fields_rev = {v: k for k, v in _{{ table.name }}_fields.items()}
+
+
+def _normalize_{{ table.name }}(record: dict, row_index: int = 0) -> dict:
+    """Convert a Google Sheets row dict to use safe field names."""
+    result = {"row_number": row_index + 2}  # +2 for 1-indexed + header row
+    for safe_name, original_name in _{{ table.name }}_fields.items():
+        result[safe_name] = record.get(original_name)
+    return result
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List rows from the '{{ table.description }}' Google Sheet.
+
+    Args:
+        limit: Maximum rows (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of rows to skip.
+    """
+    limit = min(limit, {{ max_limit }})
+    ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
+    records = ws.get_all_records()
+    normalized = [_normalize_{{ table.name }}(r, i) for i, r in enumerate(records)]
+    return normalized[offset:offset + limit]
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.description }}' sheet for matching rows.
+
+    Args:
+        query: Search text (case-insensitive, matches any field).
+        limit: Maximum results.
+    """
+    all_rows = list_{{ table.name }}(limit=10000)
+    query_lower = query.lower()
+    results = []
+    for row in all_rows:
+        for value in row.values():
+            if value and query_lower in str(value).lower():
+                results.append(row)
+                break
+        if len(results) >= limit:
+            break
+    return results
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of rows in '{{ table.description }}'."""
+    ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
+    return len(ws.get_all_records())
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the schema of the '{{ table.description }}' sheet."""
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": {"type": "{{ col.type.value }}", "sheet_header": "{{ col.description }}"},
+        {% endfor %}
+    }
+{% endif %}
+
+
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
+@mcp.tool()
+def append_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
+    """Append a new row to the '{{ table.description }}' sheet.
+
+    Args:
+        {% for col in table.columns %}
+        {{ col.name }}: Value for '{{ col.description }}'.
+        {% endfor %}
+
+    Returns:
+        The appended row data.
+    """
+    ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
+    headers = ws.row_values(1)
+    row_values = []
+    data = {
+        {% for col in table.columns %}
+        "{{ col.description }}": {{ col.name }},
+        {% endfor %}
+    }
+    for h in headers:
+        row_values.append(str(data.get(h, "") or ""))
+    ws.append_row(row_values)
+    return {"appended": True, "data": data}
+
+
+
+{% if 'update' in ops %}
+@mcp.tool()
+def update_{{ table.name }}_cell(row_number: int, field: str, value: str) -> dict:
+    """Update a single cell in '{{ table.description }}'.
+
+    Args:
+        row_number: The row number (from list results, 1-indexed).
+        field: The safe field name to update.
+        value: The new value.
+    """
+    ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
+    if field not in _{{ table.name }}_fields:
+        return {"error": f"Unknown field: {field}"}
+    original_name = _{{ table.name }}_fields[field]
+    headers = ws.row_values(1)
+    try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
+        col_index = headers.index(original_name) + 1
+    except ValueError:
+        return {"error": f"Header '{original_name}' not found"}
+    ws.update_cell(row_number, col_index, value)
+    return {"updated": True, "row": row_number, "field": field, "value": value}
+{% endif %}
+
+{% endif %}
+{% endfor %}

@@ -84,6 +84,18 @@ def get_connector(uri: str) -> BaseConnector:
         scheme = uri.split("://")[0].lower()
         if scheme in _CONNECTOR_REGISTRY:
             return _CONNECTOR_REGISTRY[scheme](uri)
+        
+        # Dependency hints
+        hints = {
+            "postgres": "pip install mcp-maker[postgres]",
+            "postgresql": "pip install mcp-maker[postgres]",
+            "mysql": "pip install mcp-maker[mysql]",
+            "airtable": "pip install mcp-maker[airtable]",
+            "gsheets": "pip install mcp-maker[gsheets]",
+            "notion": "pip install mcp-maker[notion]",
+        }
+        if scheme in hints:
+            raise ValueError(f"Missing dependencies for {scheme}. Please install them: {hints[scheme]}")
 
     # Check if it's a directory → FileConnector
     if os.path.isdir(uri):

@@ -1,0 +1,254 @@
+# ─── Database Connection Pool ───
+
+DSN = "{{ source_uri }}"
+_pg_pool = psycopg2.pool.ThreadedConnectionPool(minconn=1, maxconn=10, dsn=DSN)
+
+
+def _get_connection():
+    """Get a connection from the pool."""
+    return _pg_pool.getconn()
+
+
+def _put_connection(conn):
+    """Return a connection to the pool."""
+    _pg_pool.putconn(conn)
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Table: {{ table.name }}
+# Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Rows: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """List rows from the '{{ table.name }}' table.
+
+    Args:
+        limit: Maximum number of rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of rows to skip for pagination.
+    """
+    conn = _get_connection()
+    try:
+        limit = min(limit, {{ max_limit }})
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute(
+            'SELECT * FROM "{{ table.name }}" LIMIT %s OFFSET %s',
+            (limit, offset),
+        )
+        rows = [dict(row) for row in cursor.fetchall()]
+        cursor.close()
+        return rows
+    except Exception as e:
+        raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
+    finally:
+        _put_connection(conn)
+{% endif %}
+
+
+{% if table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
+    """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
+    conn = _get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute(
+            'SELECT * FROM "{{ table.name }}" WHERE "{{ pk.name }}" = %s',
+            ({{ pk.name }},),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        return dict(row) if row else None
+    except Exception as e:
+        raise RuntimeError(f"get_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+    finally:
+        _put_connection(conn)
+{% endif %}
+
+{% endif %}
+
+{% if table.searchable_columns %}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search the '{{ table.name }}' table by matching against text columns.
+
+    This uses ILIKE pattern matching. For large tables with millions of rows,
+    consider using the semantic_search tool instead for better performance.
+    """
+    conn = _get_connection()
+    try:
+        limit = min(limit, {{ max_limit }})
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        conditions = []
+        params = []
+        {% for col in table.searchable_columns %}
+        {% if col.type.value == 'string' %}
+        conditions.append('"{{ col.name }}" ILIKE %s')
+        params.append(f"%{query}%")
+        {% endif %}
+        {% endfor %}
+
+        if not conditions:
+            cursor.close()
+            return []
+
+        where_clause = " OR ".join(conditions)
+        params.append(limit)
+        cursor.execute(
+            f'SELECT * FROM "{{ table.name }}" WHERE {where_clause} LIMIT %s',
+            params,
+        )
+        rows = [dict(row) for row in cursor.fetchall()]
+        cursor.close()
+        return rows
+    except Exception as e:
+        raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
+    finally:
+        _put_connection(conn)
+{% endif %}
+
+{% endif %}
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of rows in the '{{ table.name }}' table."""
+    conn = _get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute('SELECT COUNT(*) as cnt FROM "{{ table.name }}"')
+        count = cursor.fetchone()["cnt"]
+        cursor.close()
+        return count
+    except Exception as e:
+        raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
+    finally:
+        _put_connection(conn)
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the schema of the '{{ table.name }}' table."""
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
+{% endif %}
+
+{% if ('insert' in ops or 'update' in ops or 'delete' in ops) and table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
+    """Insert a new row into the '{{ table.name }}' table."""
+    conn = _get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        columns = []
+        values = []
+        {% for col in table.columns if not col.primary_key %}
+        if {{ col.name }} is not None:
+            columns.append('"{{ col.name }}"')
+            values.append({{ col.name }})
+        {% endfor %}
+
+        placeholders = ", ".join(["%s" for _ in values])
+        col_names = ", ".join(columns)
+        cursor.execute(
+            f'INSERT INTO "{{ table.name }}" ({col_names}) VALUES ({placeholders}) RETURNING *',
+            values,
+        )
+        row = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        return dict(row) if row else {}
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
+    finally:
+        _put_connection(conn)
+{% endif %}
+
+
+
+{% if 'update' in ops %}
+@mcp.tool()
+def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, {% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }} | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
+    """Update an existing row in the '{{ table.name }}' table."""
+    conn = _get_connection()
+    try:
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        updates = []
+        values = []
+        {% for col in table.columns if not col.primary_key %}
+        if {{ col.name }} is not None:
+            updates.append('"{{ col.name }}" = %s')
+            values.append({{ col.name }})
+        {% endfor %}
+
+        if not updates:
+            cursor.close()
+            return get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }})
+
+        set_clause = ", ".join(updates)
+        values.append({{ pk.name }})
+        cursor.execute(
+            f'UPDATE "{{ table.name }}" SET {set_clause} WHERE "{{ pk.name }}" = %s RETURNING *',
+            values,
+        )
+        row = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        return dict(row) if row else None
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"update_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+    finally:
+        _put_connection(conn)
+{% endif %}
+
+
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
+    """Delete a row from the '{{ table.name }}' table."""
+    conn = _get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            'DELETE FROM "{{ table.name }}" WHERE "{{ pk.name }}" = %s',
+            ({{ pk.name }},),
+        )
+        deleted = cursor.rowcount
+        conn.commit()
+        cursor.close()
+        return {"deleted": deleted, "{{ pk.name }}": {{ pk.name }}}
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+    finally:
+        _put_connection(conn)
+{% endif %}
+
+{% endif %}
+{% endfor %}

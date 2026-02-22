@@ -20,6 +20,8 @@ def generate_server_code(
     schema: DataSourceSchema,
     ops: list[str] = None,
     semantic: bool = False,
+    default_limit: int = 50,
+    max_limit: int = 500,
 ) -> str:
     """Generate a complete MCP server Python file from a schema.
 
@@ -29,6 +31,8 @@ def generate_server_code(
             If None, defaults to ['read'].
         semantic: If True, generate semantic (vector) search tools
             using ChromaDB.
+        default_limit: Default number of records to return for list tools.
+        max_limit: Maximum number of records allowed per request.
 
     Returns:
         A string containing valid Python code for an MCP server.
@@ -53,6 +57,8 @@ def generate_server_code(
         resources=schema.resources,
         ops=ops,
         semantic=semantic,
+        default_limit=default_limit,
+        max_limit=max_limit,
     )
 
 
@@ -62,6 +68,8 @@ def write_server(
     filename: str = "mcp_server.py",
     ops: list[str] = None,
     semantic: bool = False,
+    default_limit: int = 50,
+    max_limit: int = 500,
 ) -> str:
     """Write generated MCP server code to a file.
 
@@ -72,11 +80,15 @@ def write_server(
         ops: List of allowed operations. Can include 'read', 'insert', 'update', 'delete'.
             If None, defaults to ['read'].
         semantic: If True, generate semantic search tools.
+        default_limit: Default number of records to return for list tools.
+        max_limit: Maximum number of records allowed per request.
 
     Returns:
         The absolute path to the generated file.
     """
-    code = generate_server_code(schema, ops=ops, semantic=semantic)
+    code = generate_server_code(
+        schema, ops=ops, semantic=semantic, default_limit=default_limit, max_limit=max_limit
+    )
     output_path = os.path.join(output_dir, filename)
     os.makedirs(output_dir, exist_ok=True)
 

@@ -1,0 +1,296 @@
+# ─── Notion Connection ───
+
+import os
+from notion_client import Client as NotionClient
+
+NOTION_API_KEY = os.environ.get("NOTION_API_KEY", os.environ.get("NOTION_TOKEN", ""))
+
+if not NOTION_API_KEY:
+    raise RuntimeError(
+        "NOTION_API_KEY or NOTION_TOKEN environment variable is required. "
+        "Create an integration at: https://www.notion.so/my-integrations"
+    )
+
+notion = NotionClient(auth=NOTION_API_KEY)
+
+# Database ID mapping (safe name -> database ID)
+DATABASE_IDS = {
+    {% for table in tables %}
+    "{{ table.name }}": "{{ schema.metadata.get('database_map', {}).get(table.name, '') }}",
+    {% endfor %}
+}
+
+# Property name mapping per database
+{% for table in tables %}
+_{{ table.name }}_props = {
+    {% for col in table.columns %}
+    "{{ col.name }}": "{{ col.description }}",
+    {% endfor %}
+}
+_{{ table.name }}_props_rev = {v: k for k, v in _{{ table.name }}_props.items()}
+{% endfor %}
+
+
+def _extract_notion_value(prop: dict):
+    """Extract a plain Python value from a Notion property object."""
+    prop_type = prop.get("type", "")
+
+    if prop_type == "title":
+        return "".join(p.get("plain_text", "") for p in prop.get("title", []))
+    elif prop_type == "rich_text":
+        return "".join(p.get("plain_text", "") for p in prop.get("rich_text", []))
+    elif prop_type == "number":
+        return prop.get("number")
+    elif prop_type == "checkbox":
+        return prop.get("checkbox", False)
+    elif prop_type == "select":
+        sel = prop.get("select")
+        return sel.get("name", "") if sel else None
+    elif prop_type == "multi_select":
+        return [s.get("name", "") for s in prop.get("multi_select", [])]
+    elif prop_type == "status":
+        st = prop.get("status")
+        return st.get("name", "") if st else None
+    elif prop_type == "date":
+        d = prop.get("date")
+        return d.get("start") if d else None
+    elif prop_type in ("url", "email", "phone_number"):
+        return prop.get(prop_type)
+    elif prop_type in ("created_time", "last_edited_time"):
+        return prop.get(prop_type)
+    elif prop_type == "people":
+        return [p.get("name", p.get("id", "")) for p in prop.get("people", [])]
+    elif prop_type == "files":
+        return [f.get("name", "") for f in prop.get("files", [])]
+    elif prop_type == "relation":
+        return [r.get("id", "") for r in prop.get("relation", [])]
+    elif prop_type == "formula":
+        f = prop.get("formula", {})
+        return f.get(f.get("type", ""))
+    elif prop_type == "rollup":
+        r = prop.get("rollup", {})
+        rt = r.get("type", "")
+        return r.get("array", []) if rt == "array" else r.get(rt)
+    elif prop_type == "unique_id":
+        uid = prop.get("unique_id", {})
+        prefix = uid.get("prefix", "")
+        num = uid.get("number", 0)
+        return f"{prefix}-{num}" if prefix else str(num)
+    elif prop_type in ("created_by", "last_edited_by"):
+        user = prop.get(prop_type, {})
+        return user.get("name", user.get("id", ""))
+    return str(prop.get(prop_type, ""))
+
+
+{% for table in tables %}
+
+# ═══════════════════════════════════════════════════════
+# Database: {{ table.description }} (as {{ table.name }})
+# Properties: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.row_count is not none %}
+# Pages: {{ table.row_count }}
+{% endif %}
+# ═══════════════════════════════════════════════════════
+
+
+def _normalize_{{ table.name }}(page: dict) -> dict:
+    """Convert a Notion page to a flat dict with safe property names."""
+    result = {"page_id": page.get("id", "")}
+    props = page.get("properties", {})
+    for safe_name, original_name in _{{ table.name }}_props.items():
+        if original_name in props:
+            result[safe_name] = _extract_notion_value(props[original_name])
+        else:
+            result[safe_name] = None
+    return result
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, start_cursor: str | None = None) -> dict:
+    """List pages from the '{{ table.description }}' Notion database.
+
+    Args:
+        limit: Maximum pages (default: {{ default_limit }}, max: {{ max_limit }}).
+        start_cursor: Pagination cursor from previous results.
+
+    Returns:
+        Dict with 'results' (list of pages) and 'next_cursor' for pagination.
+    """
+    limit = min(limit, {{ max_limit }})
+    kwargs = {"database_id": DATABASE_IDS["{{ table.name }}"], "page_size": limit}
+    if start_cursor:
+        kwargs["start_cursor"] = start_cursor
+    response = notion.databases.query(**kwargs)
+    results = [_normalize_{{ table.name }}(p) for p in response.get("results", [])]
+    return {
+        "results": results,
+        "next_cursor": response.get("next_cursor"),
+        "has_more": response.get("has_more", False),
+    }
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def get_{{ table.name }}_by_page_id(page_id: str) -> dict | None:
+    """Get a single page from '{{ table.description }}' by its Notion page ID.
+
+    Args:
+        page_id: The Notion page ID.
+    """
+    try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
+        page = notion.pages.retrieve(page_id=page_id)
+        return _normalize_{{ table.name }}(page)
+    except Exception:
+        return None
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
+    """Search '{{ table.description }}' for matching pages.
+
+    Args:
+        query: Search text (case-insensitive, matches visible text fields).
+        limit: Maximum results.
+    """
+    # Notion's database query doesn't have a direct text search,
+    # so we fetch all and filter client-side
+    all_pages = []
+    has_more = True
+    cursor = None
+    while has_more and len(all_pages) < 1000:
+        result = list_{{ table.name }}(limit=100, start_cursor=cursor)
+        all_pages.extend(result["results"])
+        has_more = result["has_more"]
+        cursor = result.get("next_cursor")
+
+    query_lower = query.lower()
+    results = []
+    for page in all_pages:
+        for value in page.values():
+            if value and query_lower in str(value).lower():
+                results.append(page)
+                break
+        if len(results) >= limit:
+            break
+    return results
+{% endif %}
+
+
+@mcp.tool()
+def filter_{{ table.name }}(property_name: str, value: str) -> list[dict]:
+    """Filter '{{ table.description }}' by a property value.
+
+    Uses Notion's native filter API for efficient server-side filtering.
+
+    Args:
+        property_name: The safe property name to filter by.
+        value: The value to match.
+
+    Available properties:
+        {% for col in table.columns %}
+        {{ col.name }} ({{ col.type.value }}) -> {{ col.description }}
+        {% endfor %}
+    """
+    if property_name not in _{{ table.name }}_props:
+        return []
+    original_name = _{{ table.name }}_props[property_name]
+
+    # Build a simple equals filter (works for text, select, etc.)
+    filter_obj = {
+        "property": original_name,
+        "rich_text": {"equals": value},
+    }
+
+    try:
+        # Throttle API requests to prevent 429 Too Many Requests
+        _rate_limiter.acquire()
+        response = notion.databases.query(
+            database_id=DATABASE_IDS["{{ table.name }}"],
+            filter=filter_obj,
+            page_size=100,
+        )
+        return [_normalize_{{ table.name }}(p) for p in response.get("results", [])]
+    except Exception:
+        # Fall back to client-side filter if filter type doesn't match
+        all_pages = search_{{ table.name }}(value, limit=100)
+        return [
+            p for p in all_pages
+            if p.get(property_name) and value.lower() in str(p[property_name]).lower()
+        ]
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def count_{{ table.name }}() -> int:
+    """Get the total number of pages in '{{ table.description }}'."""
+    count = 0
+    has_more = True
+    cursor = None
+    while has_more:
+        result = list_{{ table.name }}(limit=100, start_cursor=cursor)
+        count += len(result["results"])
+        has_more = result["has_more"]
+        cursor = result.get("next_cursor")
+    return count
+{% endif %}
+
+
+
+{% if 'read' in ops %}
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the schema of '{{ table.description }}' Notion database.
+
+    Returns property names, types, and available options for select fields.
+    """
+    {% set sel_opts = schema.metadata.get('select_options_map', {}).get(table.name, {}) %}
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": {
+            "type": "{{ col.type.value }}",
+            "notion_name": "{{ col.description }}",
+            {% if col.name in sel_opts %}
+            "options": {{ sel_opts[col.name] }},
+            {% endif %}
+        },
+        {% endfor %}
+    }
+{% endif %}
+
+
+{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
+@mcp.tool()
+def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
+    """Create a new page in '{{ table.description }}'.
+
+    Args:
+        {% for col in table.columns %}
+        {{ col.name }}: Value for '{{ col.description }}'.
+        {% endfor %}
+
+    Returns:
+        The created page with its page_id.
+    """
+    properties = {}
+    {% for col in table.columns %}
+    if {{ col.name }} is not None:
+        properties["{{ col.description }}"] = {"rich_text": [{"text": {"content": str({{ col.name }})}}]}
+    {% endfor %}
+    page = notion.pages.create(
+        parent={"database_id": DATABASE_IDS["{{ table.name }}"]},
+        properties=properties,
+    )
+    return _normalize_{{ table.name }}(page)
+
+{% endif %}
+{% endfor %}
