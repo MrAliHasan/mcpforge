@@ -15,33 +15,67 @@ DATA_DIR = DATABASE_URL
 
 {% if 'read' in ops %}
 @mcp.tool()
-def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List records from the '{{ table.name }}' dataset.
 
     Args:
         limit: Maximum rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
         offset: Number of rows to skip for pagination.
+        sort_field: Column name to sort by.
+        sort_direction: 'asc' or 'desc' (default: 'asc').
+        fields: Comma-separated column names to return (default: all).
 
     Returns:
-        List of records as dictionaries.
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
     """
-    limit = min(limit, {{ max_limit }})
-    filepath = os.path.join(DATA_DIR, "{{ table.name }}.csv")
-    if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            rows = list(reader)
-        return rows[offset:offset + limit]
+    try:
+        limit = min(limit, {{ max_limit }})
+        filepath = _os.path.join(DATA_DIR, "{{ table.name }}.csv")
+        if _os.path.exists(filepath):
+            with open(filepath, "r", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                all_rows = list(reader)
+        else:
+            filepath = _os.path.join(DATA_DIR, "{{ table.name }}.json")
+            if _os.path.exists(filepath):
+                with open(filepath, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                all_rows = data if isinstance(data, list) else [data]
+            else:
+                all_rows = []
 
-    filepath = os.path.join(DATA_DIR, "{{ table.name }}.json")
-    if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            return data[offset:offset + limit]
-        return [data]
+        total = len(all_rows)
+        if sort_field:
+            all_rows = sorted(all_rows, key=lambda r: str(r.get(sort_field, "")), reverse=(sort_direction.lower() == "desc"))
+        rows = all_rows[offset:offset + limit]
+        if fields:
+            selected = [f.strip() for f in fields.split(",") if f.strip()]
+            rows = [{k: r.get(k) for k in selected if k in r} for r in rows]
+        return {
+            "results": rows,
+            "total": total,
+            "has_more": (offset + limit) < total,
+            "next_offset": offset + limit if (offset + limit) < total else None,
+        }
+    except Exception as e:
+        raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
 
-    return []
+@mcp.tool()
+def get_{{ table.name }}_by_row(row_number: int) -> dict | None:
+    """Get a single record from '{{ table.name }}' by its row number (0-indexed).
+
+    Args:
+        row_number: The row index (0 = first data row).
+    """
+    try:
+        all_rows = list_{{ table.name }}(limit=100000)
+        if 0 <= row_number < len(all_rows):
+            result = dict(all_rows[row_number])
+            result["_row_number"] = row_number
+            return result
+        return None
+    except Exception as e:
+        raise RuntimeError(f"get_{{ table.name }}_by_row failed: {e}") from e
 {% endif %}
 
 
@@ -58,26 +92,37 @@ def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> lis
     Returns:
         List of matching records.
     """
-    all_rows = list_{{ table.name }}(limit=10000)
-    query_lower = query.lower()
-    results = []
-    for row in all_rows:
-        for value in row.values():
-            if query_lower in str(value).lower():
-                results.append(row)
+    try:
+        all_rows = list_{{ table.name }}(limit=10000)
+        query_lower = query.lower()
+        results = []
+        for row in all_rows:
+            for value in row.values():
+                if query_lower in str(value).lower():
+                    results.append(row)
+                    break
+            if len(results) >= limit:
                 break
-        if len(results) >= limit:
-            break
-    return results
-{% endif %}
+        return results
+    except Exception as e:
+        raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
 
-
-
-{% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of records in the '{{ table.name }}' dataset."""
-    return len(list_{{ table.name }}(limit=100000))
+    try:
+        return len(list_{{ table.name }}(limit=100000))
+    except Exception as e:
+        raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
+
+@mcp.tool()
+def schema_{{ table.name }}() -> dict:
+    """Get the column names and types for the '{{ table.name }}' dataset."""
+    return {
+        {% for col in table.columns %}
+        "{{ col.name }}": "{{ col.type.value }}",
+        {% endfor %}
+    }
 {% endif %}
 
 {% endfor %}

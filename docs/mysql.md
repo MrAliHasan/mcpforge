@@ -52,11 +52,21 @@ Same as SQLite and PostgreSQL — for each table:
 ### Read Tools
 
 ```
-list_users(limit=50, offset=0)       → Paginated listing
+list_users(limit=50, offset=0)       → {results, total, has_more, next_offset}
 get_users_by_id(id=1)                → Get by primary key
-search_users(query="alice")           → Full-text search
+search_users(query="alice")           → Full-text search (LIKE)
 count_users()                         → Row count
 schema_users()                        → Column info
+export_users_csv()                    → Export as CSV string
+export_users_json()                   → Export as JSON string
+```
+
+### Advanced List Features
+
+```
+list_users(fields="name,email")              → Column selection
+list_users(sort_field="name", sort_direction="desc")  → Sorting
+list_orders(created_at_from="2024-01-01")    → Date range filter (auto-detected)
 ```
 
 ### Write Tools (with `--read-write`)
@@ -69,6 +79,14 @@ mcp-maker init mysql://user:pass@host/db --read-write
 insert_users(name="Frank", email="frank@co.com")
 update_users_by_id(id=1, name="Updated Name")
 delete_users_by_id(id=1)
+batch_insert_users(records=[{...}, {...}])
+batch_delete_users(ids=[1, 2, 3])
+```
+
+### Relationship Tools
+
+```
+join_orders_with_users(limit=50, offset=0)  → Auto-detected FK joins
 ```
 
 ---

@@ -94,11 +94,16 @@ For a base with tables `Contacts` and `Projects`, you'll get:
 
 | Tool | Example | What It Does |
 |------|---------|-------------|
-| `list_contacts(limit, offset, sort_field, sort_direction)` | `list_contacts(limit=10, sort_field="name", sort_direction="desc")` | Paginated listing with optional sorting |
+| `list_contacts(limit, offset, sort_field, sort_direction, fields)` | `list_contacts(limit=10, sort_field="name")` | → `{results, total, has_more, next_offset}` |
 | `get_contacts_by_record_id(record_id)` | `get_contacts_by_record_id("recXXXXXXXX")` | Get by Airtable record ID |
 | `search_contacts(query, limit)` | `search_contacts(query="alice")` | Full-text search across all fields |
 | `count_contacts()` | `count_contacts()` | Total record count |
 | `schema_contacts()` | `schema_contacts()` | Field names, types, and select options |
+| `export_contacts_csv()` | `export_contacts_csv()` | Export as CSV string |
+| `export_contacts_json()` | `export_contacts_json()` | Export as JSON string |
+
+**Advanced list features:**
+- `list_contacts(fields="name,email")` → Field selection
 
 ### Airtable-Specific Tools
 

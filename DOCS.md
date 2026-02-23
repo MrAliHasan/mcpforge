@@ -45,13 +45,15 @@ Each guide includes step-by-step setup, authentication, complete examples with s
 
 ```bash
 mcp-maker init <source>                        # Generate an MCP server
+mcp-maker init <source1> <source2>             # Multi-source: merge into one server
 mcp-maker init <source> --ops read,insert      # Include specific write operations
 mcp-maker init <source> --tables users,orders  # Only include specific tables
 mcp-maker init <source> --semantic             # Enable vector/semantic search
 mcp-maker init <source> --audit                # Enable structured JSON audit logging
 mcp-maker init <source> --auth api-key         # Require MCP_API_KEY for access
 mcp-maker init <source> --async                # Generate async tools
-mcp-maker init <source> --cache 60              # Cache read results for 60 seconds
+mcp-maker init <source> --cache 60             # Cache read results for 60 seconds
+mcp-maker init <source> --webhooks             # Enable webhook registration and notifications
 mcp-maker init <source> --no-ssl               # Disable SSL/TLS enforcement (local dev only)
 mcp-maker init <source> --force                # Skip schema change warnings on re-generation
 mcp-maker init <source> --consolidate-threshold 20 # Consolidate tools for large schemas
@@ -61,6 +63,8 @@ mcp-maker deploy --platform fly                # Generate Fly.io deployment file
 mcp-maker serve                                # Run the generated server
 mcp-maker inspect <source>                     # Dry run — preview what would be generated
 mcp-maker inspect <source> --tables users      # Preview filtered schema
+mcp-maker test                                 # Smoke test a generated server
+mcp-maker test --output ./my-server            # Test a server in a specific directory
 mcp-maker config                               # Show Claude Desktop config JSON
 mcp-maker config --install                     # Auto-write Claude Desktop config
 mcp-maker env set KEY VALUE                    # Store API key in .env
@@ -190,10 +194,21 @@ Use --force to suppress this warning.
 
 ---
 
-## Coming Soon
+## ✅ Recently Shipped
 
-### 🥉 Polish & Power
-- **Relationship Detection** — Auto-detect foreign keys, generate join tools
+- **Relationship Detection** — Auto-detect foreign keys, generate `join_` tools
+- **Multi-Source Servers** — `mcp-maker init sqlite:///users.db mongodb://localhost/orders` → single server
+- **Pagination Helpers** — All `list_` tools return `{results, total, has_more, next_offset}`
+- **Column Selection** — `fields="name,email"` param on all `list_` tools
+- **Date Range Filters** — Auto-generated `_from`/`_to` for date/datetime columns
+- **Batch Operations** — `batch_insert_` and `batch_delete_` for all SQL, MongoDB, Supabase
+- **Export Tools** — `export_{table}_csv()` and `export_{table}_json()` for all connectors
+- **Webhook Support** — `--webhooks` flag for real-time notifications
+- **Redis Pub/Sub** — `publish_message()`, `channel_list()`, `channel_subscribers()`
+- **`mcp-maker test`** — Smoke test generated servers with AST analysis
+- **Schema Migrations** — Rich migration diff table with auto-update on re-generation
+
+### 🥉 Coming Soon
 - **Web Dashboard** — `mcp-maker ui` → browser-based management
-- **Multi-Source Servers** — Combine sources: `mcp-maker init sqlite:///users.db airtable://appXXX`
+- **GraphQL Support** — Generate MCP tools from GraphQL schemas
 

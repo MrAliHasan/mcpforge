@@ -133,24 +133,70 @@ def delete_record(table_name: str, filters: dict) -> dict:
 
 {% if 'read' in ops %}
 @mcp.tool()
-def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None{% for col in table.columns if col.type.value in ('date', 'datetime') %}, {{ col.name }}_from: str | None = None, {{ col.name }}_to: str | None = None{% endfor %}) -> dict:
     """List rows from the '{{ table.name }}' table.
 
     Args:
         limit: Maximum number of rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
         offset: Number of rows to skip for pagination.
+        sort_field: Column name to sort by (e.g. '{{ table.columns[0].name }}').
+        sort_direction: 'asc' or 'desc' (default: 'asc').
+        fields: Comma-separated column names to return (default: all). E.g. 'name,email'.
+        {% for col in table.columns if col.type.value in ('date', 'datetime') %}
+        {{ col.name }}_from: Filter {{ col.name }} >= this value (ISO format).
+        {{ col.name }}_to: Filter {{ col.name }} <= this value (ISO format).
+        {% endfor %}
 
     Returns:
-        List of {{ table.name }} records as dictionaries.
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
     """
     try:
         limit = min(limit, {{ max_limit }})
         conn = _get_connection()
-        cursor = conn.execute(
-            'SELECT * FROM "{{ table.name }}" LIMIT ? OFFSET ?',
-            (limit, offset),
-        )
-        return [dict(row) for row in cursor.fetchall()]
+        _valid_cols = { {% for col in table.columns %}"{{ col.name }}", {% endfor %} }
+
+        # Column selection
+        if fields:
+            selected = [f.strip() for f in fields.split(",") if f.strip() in _valid_cols]
+            select_clause = ", ".join(f'"{c}"' for c in selected) if selected else "*"
+        else:
+            select_clause = "*"
+
+        query = f'SELECT {select_clause} FROM "{{ table.name }}"'
+        params = []
+
+        # Date range filters
+        conditions = []
+        {% for col in table.columns if col.type.value in ('date', 'datetime') %}
+        if {{ col.name }}_from:
+            conditions.append('"{{ col.name }}" >= ?')
+            params.append({{ col.name }}_from)
+        if {{ col.name }}_to:
+            conditions.append('"{{ col.name }}" <= ?')
+            params.append({{ col.name }}_to)
+        {% endfor %}
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        # Get total count
+        count_query = f'SELECT COUNT(*) FROM "{{ table.name }}"'
+        if conditions:
+            count_query += " WHERE " + " AND ".join(conditions)
+        total = conn.execute(count_query, params[:]).fetchone()[0]
+
+        if sort_field and sort_field in _valid_cols:
+            direction = "DESC" if sort_direction.lower() == "desc" else "ASC"
+            query += f' ORDER BY "{sort_field}" {direction}'
+        query += ' LIMIT ? OFFSET ?'
+        params.extend([limit, offset])
+        cursor = conn.execute(query, params)
+        rows = [dict(row) for row in cursor.fetchall()]
+        return {
+            "results": rows,
+            "total": total,
+            "has_more": (offset + limit) < total,
+            "next_offset": offset + limit if (offset + limit) < total else None,
+        }
     except Exception as e:
         raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
 {% endif %}
@@ -249,6 +295,41 @@ def count_{{ table.name }}() -> int:
 
 
 {{ m.schema_tool(table, ops) }}
+
+{% if 'read' in ops %}
+@mcp.tool()
+def aggregate_{{ table.name }}(group_by: str, agg_function: str = "count", agg_column: str = "*", limit: int = 20) -> list[dict]:
+    """Aggregate data in '{{ table.name }}' using GROUP BY.
+
+    Args:
+        group_by: Column to group by (e.g. '{{ table.columns[0].name }}').
+        agg_function: 'count', 'sum', 'avg', 'min', or 'max'.
+        agg_column: Column to aggregate (default: '*' for count).
+        limit: Maximum groups to return.
+
+    Returns:
+        List of dicts with 'group' and 'value' keys.
+    """
+    _valid_cols = { {% for col in table.columns %}"{{ col.name }}", {% endfor %} }
+    if group_by not in _valid_cols:
+        raise ValueError(f"Invalid group_by: {group_by}. Available: {', '.join(sorted(_valid_cols))}")
+    agg_function = agg_function.upper()
+    if agg_function not in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
+        raise ValueError(f"Invalid agg_function: {agg_function}. Use: count, sum, avg, min, max")
+    if agg_column != "*" and agg_column not in _valid_cols:
+        raise ValueError(f"Invalid agg_column: {agg_column}")
+    try:
+        conn = _get_connection()
+        agg_col = "*" if agg_column == "*" else f'"{agg_column}"'
+        cursor = conn.execute(
+            f'SELECT "{group_by}" as "group", {agg_function}({agg_col}) as "value" '
+            f'FROM "{{ table.name }}" GROUP BY "{group_by}" ORDER BY "value" DESC LIMIT ?',
+            (min(limit, 100),),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        raise RuntimeError(f"aggregate_{{ table.name }} failed: {e}") from e
+{% endif %}
 
 {% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
 {% if table.primary_key_columns %}
@@ -353,8 +434,89 @@ def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
         raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
 {% endif %}
 
+{% if 'insert' in ops %}
+@mcp.tool()
+def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
+    """Insert multiple rows into '{{ table.name }}' in a single transaction.
+
+    Args:
+        records: List of dictionaries, each representing a row.
+    """
+    try:
+        conn = _get_connection()
+        inserted = 0
+        for record in records:
+            cols = [c for c in record.keys() if c != "{{ pk.name }}"]
+            vals = [record[c] for c in cols]
+            placeholders = ", ".join(["?"] * len(cols))
+            col_names = ", ".join(f'"{c}"' for c in cols)
+            conn.execute(
+                f'INSERT INTO "{{ table.name }}" ({col_names}) VALUES ({placeholders})',
+                vals,
+            )
+            inserted += 1
+        conn.commit()
+        return {"inserted": inserted}
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"batch_insert_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def batch_delete_{{ table.name }}(ids: list) -> dict:
+    """Delete multiple rows from '{{ table.name }}' by their {{ pk.name }} values.
+
+    Args:
+        ids: List of {{ pk.name }} values to delete.
+    """
+    try:
+        conn = _get_connection()
+        placeholders = ", ".join(["?"] * len(ids))
+        cursor = conn.execute(
+            f'DELETE FROM "{{ table.name }}" WHERE "{{ pk.name }}" IN ({placeholders})',
+            ids,
+        )
+        conn.commit()
+        return {"deleted": cursor.rowcount}
+    except Exception as e:
+        conn.rollback()
+        raise RuntimeError(f"batch_delete_{{ table.name }} failed: {e}") from e
+{% endif %}
+
 {% endif %}
 {% endif %}
 {% endfor %}
 
+{% endif %}
+
+{% if foreign_keys and 'read' in ops %}
+# ═══════════════════════════════════════════════════════
+# Relationship Joins (auto-detected from foreign keys)
+# ═══════════════════════════════════════════════════════
+
+{% for fk in foreign_keys %}
+@mcp.tool()
+def join_{{ fk.from_table }}_with_{{ fk.to_table }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+    """Join '{{ fk.from_table }}' with '{{ fk.to_table }}' via {{ fk.from_table }}.{{ fk.from_column }} → {{ fk.to_table }}.{{ fk.to_column }}.
+
+    Args:
+        limit: Maximum rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
+        offset: Number of rows to skip for pagination.
+    """
+    try:
+        limit = min(limit, {{ max_limit }})
+        conn = _get_connection()
+        cursor = conn.execute(
+            'SELECT "{{ fk.from_table }}".*, "{{ fk.to_table }}".* '
+            'FROM "{{ fk.from_table }}" '
+            'JOIN "{{ fk.to_table }}" ON "{{ fk.from_table }}"."{{ fk.from_column }}" = "{{ fk.to_table }}"."{{ fk.to_column }}" '
+            'LIMIT ? OFFSET ?',
+            (limit, offset),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        raise RuntimeError(f"join_{{ fk.from_table }}_with_{{ fk.to_table }} failed: {e}") from e
+
+{% endfor %}
 {% endif %}

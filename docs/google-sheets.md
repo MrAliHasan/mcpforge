@@ -97,10 +97,15 @@ For a spreadsheet with tabs `Clients` and `Invoices`:
 
 | Tool | Example | What It Does |
 |------|---------|-------------|
-| `list_clients(limit, offset)` | `list_clients(limit=20)` | List rows from the sheet |
+| `list_clients(limit, offset, fields)` | `list_clients(limit=20)` | → `{results, total, has_more, next_offset}` |
 | `search_clients(query, limit)` | `search_clients(query="Acme")` | Search across all columns |
 | `count_clients()` | `count_clients()` | Total row count |
 | `schema_clients()` | `schema_clients()` | Column headers and inferred types |
+| `export_clients_csv()` | `export_clients_csv()` | Export as CSV string |
+| `export_clients_json()` | `export_clients_json()` | Export as JSON string |
+
+**Advanced list features:**
+- `list_clients(fields="name,email")` → Column selection
 
 ### Write Tools (with `--read-write`)
 

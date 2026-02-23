@@ -8,6 +8,7 @@ from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     DataSourceSchema,
+    ForeignKey,
     Table,
     map_sql_type,
 )
@@ -128,6 +129,32 @@ class MySQLConnector(BaseConnector):
                 row_count=row_count,
             ))
 
+        # Discover foreign key relationships
+        foreign_keys = []
+        try:
+            cursor.execute(
+                """
+                SELECT
+                    TABLE_NAME AS from_table,
+                    COLUMN_NAME AS from_column,
+                    REFERENCED_TABLE_NAME AS to_table,
+                    REFERENCED_COLUMN_NAME AS to_column
+                FROM information_schema.KEY_COLUMN_USAGE
+                WHERE TABLE_SCHEMA = %s
+                  AND REFERENCED_TABLE_NAME IS NOT NULL
+                """,
+                (db_name,),
+            )
+            for row in cursor.fetchall():
+                foreign_keys.append(ForeignKey(
+                    from_table=row["from_table"],
+                    from_column=row["from_column"],
+                    to_table=row["to_table"],
+                    to_column=row["to_column"],
+                ))
+        except Exception:
+            pass
+
         cursor.close()
         conn.close()
 
@@ -135,6 +162,7 @@ class MySQLConnector(BaseConnector):
             source_type="mysql",
             source_uri=self.uri,
             tables=tables,
+            foreign_keys=foreign_keys,
             metadata={
                 "database": db_name,
                 "host": params["host"],

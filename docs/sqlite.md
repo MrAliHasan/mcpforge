@@ -39,11 +39,21 @@ For each table in your SQLite database, MCP-Maker generates:
 ### Read Tools (always generated)
 
 ```
-list_contacts(limit=50, offset=0)     → Paginated listing
+list_contacts(limit=50, offset=0)     → Paginated listing → {results, total, has_more, next_offset}
 get_contacts_by_id(id=1)              → Get by primary key
 search_contacts(query="alice")         → Full-text search
 count_contacts()                       → Total row count
 schema_contacts()                      → Column names & types
+export_contacts_csv()                  → Export as CSV string
+export_contacts_json()                 → Export as JSON string
+```
+
+### Advanced List Features
+
+```
+list_contacts(fields="name,email")              → Column selection
+list_contacts(sort_field="name", sort_direction="desc")  → Sorting
+list_contacts(created_at_from="2024-01-01")     → Date range filter (auto-detected)
 ```
 
 ### Write Tools (with `--read-write`)
@@ -56,6 +66,16 @@ mcp-maker init sqlite:///my.db --read-write
 insert_contacts(name="Frank", email="frank@co.com")      → Insert a row
 update_contacts_by_id(id=1, name="Alice Updated")         → Update by PK
 delete_contacts_by_id(id=1)                                → Delete by PK
+batch_insert_contacts(records=[{...}, {...}])               → Batch insert
+batch_delete_contacts(ids=[1, 2, 3])                        → Batch delete
+```
+
+### Relationship Tools
+
+When foreign keys are detected between tables (e.g., `posts.user_id → users.id`), MCP-Maker auto-generates:
+
+```
+join_posts_with_users(limit=50, offset=0)  → Pre-built JOIN query
 ```
 
 ---
@@ -147,7 +167,8 @@ MCP-Maker maps SQLite types automatically:
 - **Primary keys are auto-detected.** MCP-Maker finds the primary key of each table and generates a `get_by_{pk}` tool for it.
 - **Composite primary keys** are supported — the first PK column is used for the get tool.
 - **Views are included** as read-only tables.
-- **Foreign keys** show up in the schema output but don't generate join tools (yet — coming soon).
+- **Foreign keys** are auto-detected and generate `join_` tools for cross-table queries.
+- **Date columns** auto-generate `_from`/`_to` filter params on `list_` tools.
 
 ---
 

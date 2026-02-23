@@ -126,15 +126,53 @@ async def delete_record(table_name: str, filters: dict) -> dict:
 
 {% if 'read' in ops %}
 @mcp.tool()
-async def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
-    """List rows from the '{{ table.name }}' table."""
+async def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None{% for col in table.columns if col.type.value in ('date', 'datetime') %}, {{ col.name }}_from: str | None = None, {{ col.name }}_to: str | None = None{% endfor %}) -> dict:
+    """List rows from the '{{ table.name }}' table.
+
+    Returns:
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
+    """
     limit = min(limit, {{ max_limit }})
+    _valid_cols = { {% for col in table.columns %}"{{ col.name }}", {% endfor %} }
+    if fields:
+        selected = [f.strip() for f in fields.split(",") if f.strip() in _valid_cols]
+        select_clause = ", ".join(f'"{c}"' for c in selected) if selected else "*"
+    else:
+        select_clause = "*"
     pool = await _get_pool()
-    rows = await pool.fetch(
-        'SELECT * FROM "{{ table.name }}" LIMIT $1 OFFSET $2',
-        limit, offset,
-    )
-    return [dict(row) for row in rows]
+    query = f'SELECT {select_clause} FROM "{{ table.name }}"'
+    params = []
+    conditions = []
+    idx = 1
+    {% for col in table.columns if col.type.value in ('date', 'datetime') %}
+    if {{ col.name }}_from:
+        conditions.append(f'"{{ col.name }}" >= ${idx}')
+        params.append({{ col.name }}_from)
+        idx += 1
+    if {{ col.name }}_to:
+        conditions.append(f'"{{ col.name }}" <= ${idx}')
+        params.append({{ col.name }}_to)
+        idx += 1
+    {% endfor %}
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+    count_query = f'SELECT COUNT(*) FROM "{{ table.name }}"'
+    if conditions:
+        count_query += " WHERE " + " AND ".join(conditions)
+    row = await pool.fetchrow(count_query, *params)
+    total = row[0]
+    if sort_field and sort_field in _valid_cols:
+        direction = "DESC" if sort_direction.lower() == "desc" else "ASC"
+        query += f' ORDER BY "{sort_field}" {direction}'
+    query += f' LIMIT ${idx} OFFSET ${idx + 1}'
+    params.extend([limit, offset])
+    rows = await pool.fetch(query, *params)
+    return {
+        "results": [dict(row) for row in rows],
+        "total": total,
+        "has_more": (offset + limit) < total,
+        "next_offset": offset + limit if (offset + limit) < total else None,
+    }
 {% endif %}
 
 {% if table.primary_key_columns %}

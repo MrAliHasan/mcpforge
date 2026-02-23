@@ -103,15 +103,26 @@ mcp-maker init ./my-data/
 **For CSV/JSON tables:**
 
 ```
-list_customers(limit=50, offset=0)     → List rows from customers.csv
+list_customers(limit=50, offset=0)     → {results, total, has_more, next_offset}
 search_customers(query="alice")         → Search across all columns
 count_customers()                       → Total row count
 schema_customers()                      → Column names & types
+export_customers_csv()                  → Export as CSV string
+export_customers_json()                 → Export as JSON string
 
-list_products(limit=50, offset=0)      → List rows from products.json
+list_products(limit=50, offset=0)      → {results, total, has_more, next_offset}
 search_products(query="widget")         → Search products
 count_products()                        → Count products
 schema_products()                       → Product schema
+export_products_csv()                   → Export as CSV string
+export_products_json()                  → Export as JSON string
+```
+
+**Advanced list features:**
+
+```
+list_customers(fields="name,email")     → Column selection
+list_customers(sort_field="name")       → Sorting
 ```
 
 **For text files:**

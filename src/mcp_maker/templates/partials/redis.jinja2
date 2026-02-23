@@ -342,3 +342,50 @@ def redis_info() -> dict:
         "db_size": _redis.dbsize(),
         "keyspace": {k: str(v) for k, v in info.items()},
     }
+
+# ─── Pub/Sub Tools ───
+
+@mcp.tool()
+def publish_message(channel: str, message: str) -> dict:
+    """Publish a message to a Redis channel.
+
+    Args:
+        channel: The channel name to publish to.
+        message: The message to send.
+
+    Returns:
+        Number of subscribers that received the message.
+    """
+    try:
+        receivers = _redis.publish(channel, message)
+        return {"channel": channel, "receivers": receivers, "status": "published"}
+    except Exception as e:
+        raise RuntimeError(f"publish_message failed: {e}") from e
+
+@mcp.tool()
+def channel_list(pattern: str = "*") -> list[str]:
+    """List active Redis Pub/Sub channels.
+
+    Args:
+        pattern: Glob pattern to filter channels (default: '*').
+    """
+    try:
+        channels = _redis.pubsub_channels(pattern)
+        return [c.decode() if isinstance(c, bytes) else c for c in channels]
+    except Exception as e:
+        raise RuntimeError(f"channel_list failed: {e}") from e
+
+@mcp.tool()
+def channel_subscribers(channel: str) -> dict:
+    """Get the number of subscribers for a channel.
+
+    Args:
+        channel: The channel name.
+    """
+    try:
+        result = _redis.pubsub_numsub(channel)
+        count = result[0][1] if result else 0
+        return {"channel": channel, "subscribers": count}
+    except Exception as e:
+        raise RuntimeError(f"channel_subscribers failed: {e}") from e
+

@@ -8,6 +8,7 @@ from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     DataSourceSchema,
+    ForeignKey,
     Table,
     map_sql_type,
 )
@@ -151,6 +152,38 @@ class PostgresConnector(BaseConnector):
                 row_count=row_count,
             ))
 
+        # Discover foreign key relationships
+        foreign_keys = []
+        try:
+            cursor.execute(
+                """
+                SELECT
+                    kcu.table_name AS from_table,
+                    kcu.column_name AS from_column,
+                    ccu.table_name AS to_table,
+                    ccu.column_name AS to_column
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                JOIN information_schema.constraint_column_usage ccu
+                    ON tc.constraint_name = ccu.constraint_name
+                    AND tc.table_schema = ccu.table_schema
+                WHERE tc.constraint_type = 'FOREIGN KEY'
+                  AND tc.table_schema = %s
+                """,
+                (schema_name,),
+            )
+            for row in cursor.fetchall():
+                foreign_keys.append(ForeignKey(
+                    from_table=row["from_table"],
+                    from_column=row["from_column"],
+                    to_table=row["to_table"],
+                    to_column=row["to_column"],
+                ))
+        except Exception:
+            conn.rollback()
+
         cursor.close()
         conn.close()
 
@@ -162,6 +195,7 @@ class PostgresConnector(BaseConnector):
             source_type="postgres",
             source_uri=self.uri,
             tables=tables,
+            foreign_keys=foreign_keys,
             metadata={
                 "database": db_name,
                 "schema": schema_name,

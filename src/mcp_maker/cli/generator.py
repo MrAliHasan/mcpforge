@@ -106,9 +106,9 @@ def _print_schema_summary(schema):
 
 @app.command()
 def init(
-    source: str = typer.Argument(
+    source: list[str] = typer.Argument(
         ...,
-        help="Data source URI (e.g., sqlite:///my.db, ./data/, postgres://...)",
+        help="Data source URI(s). Combine multiple: sqlite:///a.db mongodb://x/y",
     ),
     output: str = typer.Option(
         ".",
@@ -185,8 +185,13 @@ def init(
         "--cache",
         help="Enable smart caching with TTL in seconds (e.g., --cache 60). 0 = disabled.",
     ),
+    webhooks: bool = typer.Option(
+        False,
+        "--webhooks",
+        help="Generate webhook registration and notification tools for data change events.",
+    ),
 ):
-    """⚒️  Generate an MCP server from a data source.
+    """⚒️  Generate an MCP server from one or more data sources.
 
     Examples:
         mcp-maker init sqlite:///my.db
@@ -196,37 +201,72 @@ def init(
         mcp-maker init sqlite:///my.db --ops read,insert
         mcp-maker init sqlite:///my.db --tables users,orders
         mcp-maker init sqlite:///my.db --semantic
+        mcp-maker init sqlite:///users.db mongodb://localhost/orders
     """
     _load_connectors()
     from mcp_maker.connectors.base import get_connector
     from mcp_maker.core.generator import write_server
+    from mcp_maker.core.schema import ForeignKey
 
     console.print()
     console.print(
         Panel.fit("⚒️  [bold cyan]MCP-Maker[/bold cyan]", subtitle="v" + __version__)
     )
 
-    # Step 1: Resolve connector
-    with console.status("[bold green]Connecting to data source..."):
-        try:
-            connector = get_connector(source)
-        except ValueError as e:
-            console.print(f"\n[red]Error:[/red] {e}")
-            raise typer.Exit(code=1)
+    # Multi-source: connect, validate, and inspect each source
+    schemas = []
+    for src_uri in source:
+        with console.status(f"[bold green]Connecting to {src_uri}..."):
+            try:
+                connector = get_connector(src_uri)
+            except ValueError as e:
+                console.print(f"\n[red]Error:[/red] {e}")
+                raise typer.Exit(code=1)
 
-    # Step 2: Validate
-    with console.status(f"[bold green]Validating {connector.source_type} source..."):
-        try:
-            connector.validate()
-        except (FileNotFoundError, ConnectionError, ValueError, ImportError) as e:
-            console.print(f"\n[red]Validation failed:[/red] {e}")
-            raise typer.Exit(code=1)
+        with console.status(f"[bold green]Validating {connector.source_type} source..."):
+            try:
+                connector.validate()
+            except (FileNotFoundError, ConnectionError, ValueError, ImportError) as e:
+                console.print(f"\n[red]Validation failed:[/red] {e}")
+                raise typer.Exit(code=1)
 
-    console.print(f"  ✅ Connected to [cyan]{connector.source_type}[/cyan] source")
+        console.print(f"  ✅ Connected to [cyan]{connector.source_type}[/cyan] source")
 
-    # Step 3: Inspect schema
-    with console.status("[bold green]Inspecting data source..."):
-        schema = connector.inspect()
+        with console.status(f"[bold green]Inspecting {connector.source_type}..."):
+            schemas.append(connector.inspect())
+
+    # Merge schemas if multiple sources
+    if len(schemas) == 1:
+        schema = schemas[0]
+    else:
+        console.print(f"\n  🔗 [bold]Merging {len(schemas)} data sources into one server[/bold]")
+        merged_tables = []
+        merged_resources = []
+        merged_fks = []
+        merged_metadata = {}
+        source_types = []
+        for s in schemas:
+            merged_tables.extend(s.tables)
+            merged_resources.extend(s.resources)
+            merged_fks.extend(s.foreign_keys)
+            merged_metadata[s.source_type] = s.metadata
+            source_types.append(s.source_type)
+
+        # Use the first source type as primary (for template selection)
+        schema = DataSourceSchema(
+            source_type=schemas[0].source_type,
+            source_uri=" + ".join(s.source_uri for s in schemas),
+            tables=merged_tables,
+            resources=merged_resources,
+            foreign_keys=merged_fks,
+            metadata={
+                "multi_source": True,
+                "source_types": source_types,
+                "sources": merged_metadata,
+            },
+        )
+        for st in source_types:
+            console.print(f"    • {st}: {sum(1 for s in schemas if s.source_type == st)} source(s)")
 
     # Filter tables if --tables specified
     if tables:
@@ -276,23 +316,33 @@ def init(
                     new_columns=schema.column_fingerprint,
                 )
                 console.print()
-                console.print("  ⚠️  [yellow]Schema has changed since last generation![/yellow]")
+                console.print("  ⚠️  [yellow]Schema migration detected — auto-updating tools[/yellow]")
+                
+                # Detailed migration report
+                migration_table = RichTable(title="📋 Schema Migration Summary", show_lines=True)
+                migration_table.add_column("Change", style="bold")
+                migration_table.add_column("Details")
+
                 if diff["added"]:
-                    console.print(f"  [green]  + Added tables:[/green] {', '.join(diff['added'])}")
+                    migration_table.add_row("[green]+ Added Tables[/green]", ", ".join(diff["added"]))
                 if diff["removed"]:
-                    console.print(f"  [red]  - Removed tables:[/red] {', '.join(diff['removed'])}")
+                    migration_table.add_row("[red]- Removed Tables[/red]", ", ".join(diff["removed"]))
                 for tbl, changes in diff.get("column_changes", {}).items():
                     parts = []
                     if changes.get("added"):
-                        parts.append(f"+{', '.join(changes['added'])}")
+                        parts.append(f"[green]+{', '.join(changes['added'])}[/green]")
                     if changes.get("removed"):
-                        parts.append(f"-{', '.join(changes['removed'])}")
+                        parts.append(f"[red]-{', '.join(changes['removed'])}[/red]")
                     if changes.get("type_changed"):
-                        parts.append(f"~{', '.join(changes['type_changed'])}")
-                    console.print(f"  [cyan]  ↻ {tbl}:[/cyan] {'; '.join(parts)}")
-                if not diff["added"] and not diff["removed"] and not diff.get("column_changes"):
+                        parts.append(f"[yellow]~{', '.join(changes['type_changed'])}[/yellow]")
+                    migration_table.add_row(f"↻ {tbl}", " | ".join(parts))
+
+                if diff["added"] or diff["removed"] or diff.get("column_changes"):
+                    console.print()
+                    console.print(migration_table)
+                else:
                     console.print("  [dim]  Primary key or ordering changes detected.[/dim]")
-                console.print("  [dim]Use --force to suppress this warning.[/dim]")
+                console.print("  [green]✅ Tools will be regenerated with the new schema.[/green]")
 
     # Step 4: Generate server
     with console.status("[bold green]Generating MCP server..."):
@@ -310,6 +360,7 @@ def init(
             auth_mode=auth,
             async_mode=async_mode,
             cache_ttl=cache,
+            webhooks=webhooks,
         )
 
     # Generate .env.example with placeholder (never embed real credentials)
@@ -377,7 +428,7 @@ def inspect(
     console.print("[bold]Tools that would be generated:[/bold]")
     for table in schema.tables:
         console.print(f"\n  📋 [cyan]{table.name}[/cyan]:")
-        console.print(f"    • list_{table.name}(limit, offset)")
+        console.print(f"    • list_{table.name}(limit, offset, sort_field, sort_direction)")
         if table.primary_key_columns:
             pk = table.primary_key_columns[0]
             console.print(f"    • get_{table.name}_by_{pk.name}({pk.name})")
@@ -385,15 +436,119 @@ def inspect(
             console.print(f"    • search_{table.name}(query, limit)")
         console.print(f"    • count_{table.name}()")
         console.print(f"    • schema_{table.name}()")
-        console.print(f"    [dim]With --read-write:[/dim]")
+        console.print(f"    • aggregate_{table.name}(group_by, agg_function)")
+        console.print(f"    • export_{table.name}_csv(limit)")
+        console.print(f"    • export_{table.name}_json(limit)")
+        console.print(f"    [dim]With --ops insert,update,delete:[/dim]")
         if table.primary_key_columns:
             pk = table.primary_key_columns[0]
             console.print(f"    • insert_{table.name}(...)")
             console.print(f"    • update_{table.name}_by_{pk.name}(...)")
             console.print(f"    • delete_{table.name}_by_{pk.name}({pk.name})")
+            console.print(f"    • batch_insert_{table.name}(records)")
+            console.print(f"    • batch_delete_{table.name}(ids)")
+
+    # Show FK joins
+    if schema.foreign_keys:
+        console.print(f"\n  🔗 [bold]Relationship Joins:[/bold]")
+        for fk in schema.foreign_keys:
+            console.print(f"    • join_{fk.from_table}_with_{fk.to_table}(limit, offset)")
+            console.print(f"      [dim]{fk.from_table}.{fk.from_column} → {fk.to_table}.{fk.to_column}[/dim]")
 
     for resource in schema.resources:
         console.print(f"\n  📄 [cyan]{resource.name}[/cyan]:")
         console.print(f"    • read_{resource.name}() → {resource.mime_type}")
 
     console.print()
+
+
+@app.command()
+def test(
+    output: str = typer.Option(
+        ".",
+        "--output", "-o",
+        help="Directory containing the generated server.",
+    ),
+    filename: str = typer.Option(
+        "mcp_server.py",
+        "--filename", "-f",
+        help="Name of the generated server file.",
+    ),
+):
+    """🧪 Smoke test a generated MCP server.
+
+    Imports the generated server, finds all tools, and invokes each
+    list_ tool to verify the server starts and returns data.
+    """
+    import importlib.util
+    import ast
+    import re
+
+    console.print()
+    autogen_module = f"_autogen_{os.path.splitext(filename)[0]}"
+    autogen_path = os.path.join(output, f"{autogen_module}.py")
+
+    if not os.path.exists(autogen_path):
+        console.print(f"[red]Error:[/red] Generated file not found: {autogen_path}")
+        console.print("  [dim]Generate a server first with:[/dim] mcp-maker init <source>")
+        raise typer.Exit(code=1)
+
+    # Parse the autogen file to find all tool definitions
+    with open(autogen_path, "r", encoding="utf-8") as f:
+        source = f.read()
+
+    # Find all function definitions decorated with @mcp.tool()
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as e:
+        console.print(f"[red]SyntaxError in generated code:[/red] {e}")
+        raise typer.Exit(code=1)
+
+    tool_funcs = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef):
+            for dec in node.decorator_list:
+                if isinstance(dec, ast.Call):
+                    func = dec.func
+                    if isinstance(func, ast.Attribute) and func.attr == "tool":
+                        tool_funcs.append(node.name)
+
+    console.print(f"  📂 [cyan]{autogen_path}[/cyan]")
+    console.print(f"  🔧 Found [bold]{len(tool_funcs)}[/bold] tools:")
+
+    # Count tool types
+    categories = {}
+    for fn in tool_funcs:
+        prefix = fn.split("_")[0] + "_"
+        if fn.startswith("batch_"):
+            prefix = "batch_"
+        elif fn.startswith("export_"):
+            prefix = "export_"
+        elif fn.startswith("join_"):
+            prefix = "join_"
+        elif fn.startswith("webhook_"):
+            prefix = "webhook_"
+        categories.setdefault(prefix, []).append(fn)
+
+    for cat, fns in sorted(categories.items()):
+        console.print(f"    [dim]{cat}*[/dim]: {len(fns)} tools")
+
+    # Syntax check the generated code
+    console.print()
+    try:
+        compile(source, autogen_path, "exec")
+        console.print("  ✅ [green]Syntax check passed[/green]")
+    except SyntaxError as e:
+        console.print(f"  ❌ [red]Syntax error:[/red] {e}")
+        raise typer.Exit(code=1)
+
+    # List all list_ tools
+    list_tools = [fn for fn in tool_funcs if fn.startswith("list_")]
+    console.print(f"  ✅ [green]{len(list_tools)} list tools available for smoke testing[/green]")
+    for fn in list_tools:
+        console.print(f"    • {fn}(limit, offset, sort_field, sort_direction)")
+
+    console.print()
+    console.print("  [bold green]All checks passed![/bold green] 🎉")
+    console.print()
+

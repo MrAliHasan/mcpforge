@@ -341,3 +341,108 @@ def _cleanup():
 
 atexit.register(_cleanup)
 
+# ─── Export Tools ───
+
+import csv as _csv
+import io as _io
+import json as _json
+
+{% for table in tables %}
+{% if 'read' in ops %}
+@mcp.tool()
+def export_{{ table.name }}_csv(limit: int = 1000) -> str:
+    """Export '{{ table.name }}' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_{{ table.name }}(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_{{ table.name }}_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export '{{ table.name }}' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_{{ table.name }}(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+{% endif %}
+{% endfor %}
+
+{% if webhooks %}
+# ─── Webhook Notifications ───
+
+import threading as _wh_threading
+import urllib.request as _wh_urllib
+import uuid as _wh_uuid
+
+_webhooks: dict[str, dict] = {}
+_wh_lock = _wh_threading.Lock()
+
+def _fire_webhooks(event: str, table: str, data: dict):
+    """Send POST notifications to registered webhook URLs (non-blocking)."""
+    with _wh_lock:
+        hooks = list(_webhooks.values())
+    for hook in hooks:
+        if event in hook.get("events", []):
+            def _send(url=hook["url"], payload={"event": event, "table": table, "data": data}):
+                try:
+                    req = _wh_urllib.Request(
+                        url,
+                        data=_json.dumps(payload, default=str).encode(),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    _wh_urllib.urlopen(req, timeout=5)
+                except Exception:
+                    pass
+            _wh_threading.Thread(target=_send, daemon=True).start()
+
+@mcp.tool()
+def webhook_register(url: str, events: list[str] | None = None) -> dict:
+    """Register a webhook URL to receive notifications on data changes.
+
+    Args:
+        url: The URL to send POST notifications to.
+        events: List of events to subscribe to: 'insert', 'update', 'delete' (default: all).
+
+    Returns:
+        The webhook registration with its ID.
+    """
+    webhook_id = str(_wh_uuid.uuid4())[:8]
+    if events is None:
+        events = ["insert", "update", "delete"]
+    with _wh_lock:
+        _webhooks[webhook_id] = {"id": webhook_id, "url": url, "events": events}
+    return _webhooks[webhook_id]
+
+@mcp.tool()
+def webhook_list() -> list[dict]:
+    """List all registered webhooks."""
+    with _wh_lock:
+        return list(_webhooks.values())
+
+@mcp.tool()
+def webhook_remove(webhook_id: str) -> dict:
+    """Remove a registered webhook.
+
+    Args:
+        webhook_id: The ID of the webhook to remove.
+    """
+    with _wh_lock:
+        removed = _webhooks.pop(webhook_id, None)
+    if removed:
+        return {"removed": True, "id": webhook_id}
+    return {"removed": False, "error": f"Webhook '{webhook_id}' not found"}
+
+{% endif %}

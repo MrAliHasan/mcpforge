@@ -81,12 +81,16 @@ async def test_generated_server_execution(sample_e2e_db, monkeypatch):
 
             # 4. Invoke list tool
             list_func = getattr(module, "list_e2e_users")
-            results = list_func(limit=10, offset=0)
+            response = list_func(limit=10, offset=0)
             
-            # 5. Assertions
+            # 5. Assertions — list_ now returns {results, total, has_more, next_offset}
+            assert isinstance(response, dict), f"Expected dict, got {type(response)}"
+            results = response["results"]
             assert len(results) == 2
             assert results[0]["username"] == "Alice_E2E"
             assert results[1]["username"] == "Bob_E2E"
+            assert response["total"] == 2
+            assert response["has_more"] is False
 
             # 6. Invoke insert tool
             insert_func = getattr(module, "insert_e2e_users")
@@ -95,8 +99,8 @@ async def test_generated_server_execution(sample_e2e_db, monkeypatch):
             assert new_record["username"] == "Charlie_E2E"
 
             # Verify it was persisted
-            results2 = list_func()
-            assert len(results2) == 3
+            response2 = list_func()
+            assert len(response2["results"]) == 3
 
         finally:
             # Clean up sys.path

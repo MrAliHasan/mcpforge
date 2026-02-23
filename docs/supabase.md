@@ -50,11 +50,20 @@ Find these in your Supabase dashboard: **Settings → API**.
 For each table in your Supabase database:
 
 ```
-list_users(limit=50, offset=0)              → Paginated listing (via REST)
+list_users(limit=50, offset=0)              → {results, total, has_more, next_offset}
 get_users_by_id(id=1)                       → Get by primary key
 search_users(query="alice")                 → ILIKE text search
 count_users()                               → Exact row count
 schema_users()                              → Column names & types
+export_users_csv()                          → Export as CSV string
+export_users_json()                         → Export as JSON string
+```
+
+### Advanced List Features
+
+```
+list_users(fields="name,email")             → Column selection (via PostgREST select)
+list_users(sort_field="name", sort_direction="desc")  → Sorting
 ```
 
 ### Write Tools (with `--ops read,insert,update,delete`)
@@ -63,6 +72,8 @@ schema_users()                              → Column names & types
 insert_users(data={...})                    → Insert via REST API
 update_users_by_id(id=1, data={...})        → Update via REST API
 delete_users_by_id(id=1)                    → Delete via REST API
+batch_insert_users(records=[{...}, {...}])   → Batch insert via REST
+batch_delete_users(ids=[1, 2, 3])            → Batch delete via REST
 ```
 
 ### Supabase-Specific Tools (always generated)

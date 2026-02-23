@@ -91,12 +91,17 @@ For a Notion workspace with databases `Tasks` and `Contacts`:
 
 | Tool | Example | What It Does |
 |------|---------|-------------|
-| `list_tasks(limit, start_cursor)` | `list_tasks(limit=20)` | Paginated listing with cursor |
+| `list_tasks(limit, start_cursor, fields)` | `list_tasks(limit=20)` | → `{results, has_more, next_cursor}` |
 | `get_tasks_by_page_id(page_id)` | `get_tasks_by_page_id("abc-123...")` | Get a specific page |
 | `search_tasks(query, limit)` | `search_tasks(query="urgent")` | Full-text search |
 | `filter_tasks(property_name, value)` | `filter_tasks(property_name="status", value="Done")` | Server-side filtering |
 | `count_tasks()` | `count_tasks()` | Total page count |
 | `schema_tasks()` | `schema_tasks()` | Property names, types, select options |
+| `export_tasks_csv()` | `export_tasks_csv()` | Export as CSV string |
+| `export_tasks_json()` | `export_tasks_json()` | Export as JSON string |
+
+**Advanced list features:**
+- `list_tasks(fields="task,status")` → Property selection
 
 ### Write Tools (with `--read-write`)
 

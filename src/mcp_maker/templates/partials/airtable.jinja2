@@ -85,7 +85,8 @@ def list_{{ table.name }}(
     offset: int = 0,
     sort_field: str | None = None,
     sort_direction: str = "asc",
-) -> list[dict]:
+    fields: str | None = None,
+) -> dict:
     """List records from the '{{ table.description }}' table in Airtable.
 
     Args:
@@ -93,6 +94,10 @@ def list_{{ table.name }}(
         offset: Number of records to skip for pagination.
         sort_field: Field name to sort by (use safe names like 'name', 'email').
         sort_direction: Sort direction — 'asc' or 'desc'.
+        fields: Comma-separated field names to return (default: all).
+
+    Returns:
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
     """
     limit = min(limit, {{ max_limit }})
     tbl = base.table(TABLE_NAMES["{{ table.name }}"])
@@ -104,7 +109,17 @@ def list_{{ table.name }}(
 
     records = tbl.all(**kwargs)
     normalized = [_normalize_{{ table.name }}(r) for r in records]
-    return normalized[offset:offset + limit]
+    total = len(normalized)
+    rows = normalized[offset:offset + limit]
+    if fields:
+        selected = [f.strip() for f in fields.split(",") if f.strip()]
+        rows = [{k: r.get(k) for k in selected if k in r} for r in rows]
+    return {
+        "results": rows,
+        "total": total,
+        "has_more": (offset + limit) < total,
+        "next_offset": offset + limit if (offset + limit) < total else None,
+    }
 {% endif %}
 
 

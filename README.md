@@ -33,7 +33,16 @@ Your Data Source          MCP-Maker              MCP Server
 - **Credential Hardening**: Connection strings and API keys are strictly forbidden in generated files. They are securely loaded via generated `.env` files and standard environment variables.
 - **API Key Authentication (`--auth api-key`)**: Gate access to your generated server with an `MCP_API_KEY` environment variable. Every tool call is wrapped with an auth check.
 - **SSL/TLS by Default**: All PostgreSQL and MySQL connections enforce encrypted transport (`sslmode=require` / `ssl=True`). Disable with `--no-ssl` for local development only.
-- **Schema Versioning**: Generates a `.mcp-maker.lock` file tracking your schema fingerprint. On re-generation, detects added/removed tables and warns about breaking changes.
+- **Schema Versioning & Migrations**: Generates a `.mcp-maker.lock` file tracking your schema fingerprint. On re-generation, detects added/removed tables/columns and displays a detailed migration diff with color-coded changes, then auto-updates tools.
+- **Multi-Source Servers**: Combine multiple data sources into a single server: `mcp-maker init sqlite:///users.db mongodb://localhost/orders` merges schemas and generates tools for both.
+- **Relationship Detection**: Auto-discovers foreign keys in SQL databases and generates `join_` tools (e.g., `join_orders_with_users`).
+- **Pagination Helpers**: All `list_` tools return `{results, total, has_more, next_offset}` for proper cursor-based pagination.
+- **Column Selection**: Pass `fields="name,email"` to any `list_` tool to receive only specific columns instead of `SELECT *`.
+- **Date Range Filters**: When date/datetime columns are detected, `list_` tools auto-generate `date_from`/`date_to` parameters.
+- **Batch Operations**: `batch_insert_` and `batch_delete_` tools wrapped in transactions for all SQL connectors, MongoDB, and Supabase.
+- **Export Tools**: `export_{table}_csv()` and `export_{table}_json()` for every table across all connectors.
+- **Webhook Support (`--webhooks`)**: Register, list, and remove webhooks for real-time notifications on insert/update/delete events.
+- **Redis Pub/Sub**: `publish_message()`, `channel_list()`, and `channel_subscribers()` tools for Redis channels.
 - **Async Generation (`--async`)**: Generate async tools using `aiosqlite`, `asyncpg`, or `aiomysql` for high-concurrency MCP servers.
 - **LLM Context Optimization (`--consolidate-threshold`)**: For massive schemas (>20 tables), MCP-Maker intelligently switches from generating per-table CRUD tools to consolidated generic tools (e.g., `query_database`) to prevent LLM context window bloat and reasoning degradation.
 - **Structured Audit Logging (`--audit`)**: Optionally generate servers that output structured JSON logs for every tool invocation, ready for ingestion into Datadog, Splunk, or ELK.

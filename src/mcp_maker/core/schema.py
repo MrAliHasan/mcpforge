@@ -123,6 +123,21 @@ class Resource:
 
 
 @dataclass
+class ForeignKey:
+    """A foreign key relationship between tables."""
+
+    from_table: str
+    from_column: str
+    to_table: str
+    to_column: str
+
+    @property
+    def join_name(self) -> str:
+        """Generate a descriptive join tool name."""
+        return f"join_{self.from_table}_with_{self.to_table}"
+
+
+@dataclass
 class DataSourceSchema:
     """Complete schema of an inspected data source.
 
@@ -141,6 +156,9 @@ class DataSourceSchema:
 
     resources: List[Resource] = field(default_factory=list)
     """Static resources (files, etc.) discovered."""
+
+    foreign_keys: List[ForeignKey] = field(default_factory=list)
+    """Foreign key relationships between tables."""
 
     metadata: Dict[str, Any] = field(default_factory=dict)
     """Additional metadata about the data source."""
