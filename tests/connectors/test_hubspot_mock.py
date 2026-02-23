@@ -1,5 +1,4 @@
 import os
-import pytest
 from unittest.mock import patch
 
 from mcp_maker.connectors.hubspot import HubSpotConnector
