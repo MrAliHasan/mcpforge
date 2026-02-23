@@ -38,7 +38,15 @@ async def describe_table(table_name: str) -> dict:
 
 @mcp.tool()
 async def query_database(table_name: str, filters: dict | None = None, limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
-    """Query a table with optional exact-match filters."""
+    """Query a table with optional filters.
+    
+    Supports exact match: {"status": "active"}
+    Supports operators via suffixes:
+      - __gt: Greater than ({"age__gt": 18})
+      - __lt: Less than ({"price__lt": 100})
+      - __like: LIKE match ({"name__like": "%John%"})
+      - __in: IN array ({"id__in": [1, 2, 3]})
+    """
     table_name = _validate_table(table_name)
     limit = min(limit, {{ max_limit }})
     pool = await _get_pool()
@@ -48,7 +56,20 @@ async def query_database(table_name: str, filters: dict | None = None, limit: in
     if filters:
         conditions = []
         for k, v in filters.items():
-            conditions.append(f'"{k}" = ${idx}')
+            if k.endswith("__gt"):
+                conditions.append(f'"{k[:-4]}" > ${idx}')
+            elif k.endswith("__lt"):
+                conditions.append(f'"{k[:-4]}" < ${idx}')
+            elif k.endswith("__like"):
+                conditions.append(f'"{k[:-6]}" LIKE ${idx}')
+            elif k.endswith("__in") and isinstance(v, list):
+                placeholders = ", ".join([f"${idx+i}" for i in range(len(v))])
+                conditions.append(f'"{k[:-4]}" IN ({placeholders})')
+                params.extend(v)
+                idx += len(v)
+                continue
+            else:
+                conditions.append(f'"{k}" = ${idx}')
             params.append(v)
             idx += 1
         query += " WHERE " + " AND ".join(conditions)

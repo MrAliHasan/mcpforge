@@ -40,10 +40,10 @@ class TestMySQLInspect:
         mock_cursor = MagicMock()
 
         # Sequence of fetchall calls: tables, columns, row_count, fk
-        tables_result = [{"TABLE_NAME": "users"}]
+        tables_result = [{"TABLE_NAME": "users", "TABLE_COMMENT": "user table"}]
         columns_result = [
-            {"COLUMN_NAME": "id", "DATA_TYPE": "int", "IS_NULLABLE": "NO", "COLUMN_KEY": "PRI", "COLUMN_DEFAULT": None},
-            {"COLUMN_NAME": "name", "DATA_TYPE": "varchar", "IS_NULLABLE": "YES", "COLUMN_KEY": "", "COLUMN_DEFAULT": None},
+            {"COLUMN_NAME": "id", "DATA_TYPE": "int", "IS_NULLABLE": "NO", "COLUMN_KEY": "PRI", "COLUMN_DEFAULT": None, "COLUMN_COMMENT": "id col"},
+            {"COLUMN_NAME": "name", "DATA_TYPE": "varchar", "IS_NULLABLE": "YES", "COLUMN_KEY": "", "COLUMN_DEFAULT": None, "COLUMN_COMMENT": None},
         ]
         fk_result = [
             {"from_table": "orders", "from_column": "user_id", "to_table": "users", "to_column": "id"},
@@ -106,8 +106,10 @@ class TestPostgresInspect:
 
         mock_cursor = MagicMock()
 
-        # Sequence of fetchall calls: tables, pks, columns, fks
+        # Sequence of fetchall calls: tables, table_comments, col_comments, pks, columns, fks
         tables_result = [{"table_name": "users"}]
+        table_comments_result = [{"table_name": "users", "table_comment": "user table"}]
+        col_comments_result = [{"table_name": "users", "column_name": "id", "column_comment": "id col"}]
         pk_result = [{"table_name": "users", "column_name": "id"}]
         columns_result = [
             {"column_name": "id", "data_type": "integer", "is_nullable": "NO", "column_default": None},
@@ -117,7 +119,7 @@ class TestPostgresInspect:
 
         call_count = [0]
         def mock_fetchall():
-            results = [tables_result, pk_result, columns_result, fk_result]
+            results = [tables_result, table_comments_result, col_comments_result, pk_result, columns_result, fk_result]
             idx = call_count[0]
             call_count[0] += 1
             if idx < len(results):

@@ -9,6 +9,9 @@
 # ═══════════════════════════════════════════════════════
 # Table: {{ table.name }}
 # Columns: {{ table.columns | map(attribute='name') | join(', ') }}
+{% if table.description %}
+# Description: {{ table.description }}
+{% endif %}
 {% if table.row_count is not none %}
 # Rows: {{ table.row_count }}
 {% endif %}
@@ -21,14 +24,14 @@
 {% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
-    """Get the schema (column names and types) of the '{{ table.name }}' table.
+    """Get the schema (column names, types, and descriptions) of the '{{ table.name }}' table.
 
     Returns:
-        Dictionary with column names as keys and types as values.
+        Dictionary with column parameters.
     """
     return {
         {% for col in table.columns %}
-        "{{ col.name }}": "{{ col.type.value }}",
+        "{{ col.name }}": {"type": "{{ col.type.value }}"{% if col.description %}, "description": """{{ col.description | replace('"', "'") }}"""{% endif %}},
         {% endfor %}
     }
 {% endif %}

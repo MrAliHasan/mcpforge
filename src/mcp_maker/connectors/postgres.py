@@ -90,6 +90,34 @@ class PostgresConnector(BaseConnector):
         )
         table_names = [row["table_name"] for row in cursor.fetchall()]
 
+        # Get table comments
+        cursor.execute(
+            """
+            SELECT c.relname as table_name, obj_description(c.oid, 'class') as table_comment
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = %s
+            """,
+            (schema_name,),
+        )
+        table_comments = {row["table_name"]: row["table_comment"] for row in cursor.fetchall() if row["table_comment"]}
+
+        # Get all column comments for the schema
+        cursor.execute(
+            """
+            SELECT c.relname as table_name, a.attname as column_name, col_description(c.oid, a.attnum) as column_comment
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            JOIN pg_attribute a ON c.oid = a.attrelid
+            WHERE n.nspname = %s AND a.attnum > 0 AND NOT a.attisdropped
+            """,
+            (schema_name,),
+        )
+        col_comments = {}
+        for row in cursor.fetchall():
+            if row["column_comment"]:
+                col_comments.setdefault(row["table_name"], {})[row["column_name"]] = row["column_comment"]
+
         # Get primary keys for all tables at once
         cursor.execute(
             """
@@ -127,6 +155,7 @@ class PostgresConnector(BaseConnector):
             )
 
             pk_columns = pk_map.get(table_name, set())
+            tb_col_comments = col_comments.get(table_name, {})
             columns = []
             for col in cursor.fetchall():
                 columns.append(Column(
@@ -134,6 +163,7 @@ class PostgresConnector(BaseConnector):
                     type=map_sql_type(col["data_type"]),
                     nullable=col["is_nullable"] == "YES",
                     primary_key=col["column_name"] in pk_columns,
+                    description=tb_col_comments.get(col["column_name"]),
                 ))
 
             # Get row count
@@ -150,6 +180,7 @@ class PostgresConnector(BaseConnector):
                 name=table_name,
                 columns=columns,
                 row_count=row_count,
+                description=table_comments.get(table_name),
             ))
 
         # Discover foreign key relationships

@@ -20,11 +20,17 @@ def _load_connectors():
         import importlib
         try:
             importlib.import_module(f"mcp_maker.connectors.{name}")
-        except ImportError as e:
-            # Only ignore if the failure is gracefully missing a 3rd-party dep.
+        except ModuleNotFoundError as e:
+            # Only ignore if the failure is gracefully missing a 3rd-party dep (e.g. psycopg2)
+            # If the connector module itself is missing or an internal module is missing, it will still raise
+            if e.name == f"mcp_maker.connectors.{name}":
+                return  # Safely ignore missing optional connector file itself if deleted
             if e.name != f"mcp_maker.connectors.{name}" and "No module named" not in str(e):
                 import logging
                 logging.warning(f"Failed to load connector '{name}': {e}")
+            else:
+                # If a 3rd party dep is missing, it's fine. 
+                pass
         except Exception as e:
             import logging
             logging.warning(f"Failed to load connector '{name}' due to error: {e}")
@@ -124,6 +130,11 @@ def init(
         False,
         "--audit",
         help="Enable structured audit logging for all tool executions.",
+    ),
+    otel: bool = typer.Option(
+        False,
+        "--otel",
+        help="Enable OpenTelemetry tracing for enterprise observability (requires opentelemetry-api/sdk).",
     ),
     consolidate_threshold: int = typer.Option(
         20,
@@ -260,13 +271,14 @@ def init(
         for st in source_types:
             console.print(f"    • {st}: {sum(1 for s in schemas if s.source_type == st)} source(s)")
 
-        # Warn if mixing different connector types — only the primary template is used
+        # Enforce that all mixed sources share the identical base source type
         unique_types = set(source_types)
         if len(unique_types) > 1:
             console.print()
-            console.print(f"  ⚠️  [yellow]Mixed source types detected:[/yellow] {', '.join(sorted(unique_types))}")
-            console.print(f"  [dim]Only the [cyan]{schemas[0].source_type}[/cyan] template will be used for code generation.[/dim]")
-            console.print("  [dim]Tables from other sources will be included but may need manual adjustments.[/dim]")
+            console.print(f"  ❌ [bold red]Mixed source types detected:[/bold red] {', '.join(sorted(unique_types))}")
+            console.print("  [dim]You cannot mix different connection types (e.g., Postgres + Notion) into a single server.[/dim]")
+            console.print("  [dim]Please initialize separate MCP servers for drastically different data sources.[/dim]")
+            raise typer.Exit(code=1)
 
     # Filter tables if --tables specified
     if tables:
@@ -371,6 +383,7 @@ def init(
             "default_limit": default_limit,
             "max_limit": max_limit,
             "audit": audit,
+            "otel": otel,
             "consolidate_threshold": consolidate_threshold,
             "ssl_enabled": not no_ssl,
             "auth_mode": auth,

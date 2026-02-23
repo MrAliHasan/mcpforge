@@ -27,6 +27,7 @@ mcp = FastMCP("sqlite-server")
 
 
 
+
 # ─── Database Connection (Thread-Safe) ───
 
 DB_PATH = DATABASE_URL
@@ -36,7 +37,7 @@ elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
     import warnings
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp2j3ocb0k.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpost9xi_c.db"
     warnings.warn(
         f"DATABASE_URL not set. Using hardcoded path: {DB_PATH}. "
         "Set DATABASE_URL environment variable for production use.",
@@ -86,7 +87,15 @@ def describe_table(table_name: str) -> dict:
 
 @mcp.tool()
 def query_database(table_name: str, filters: dict | None = None, limit: int = 50, offset: int = 0) -> list[dict]:
-    """Query a table with optional exact-match filters (e.g. {"status": "active"})."""
+    """Query a table with optional filters.
+    
+    Supports exact match: {"status": "active"}
+    Supports operators via suffixes:
+      - __gt: Greater than ({"age__gt": 18})
+      - __lt: Less than ({"price__lt": 100})
+      - __like: LIKE match ({"name__like": "%John%"})
+      - __in: IN array ({"id__in": [1, 2, 3]})
+    """
     table_name = _validate_table(table_name)
     conn = _get_connection()
     try:
@@ -96,7 +105,19 @@ def query_database(table_name: str, filters: dict | None = None, limit: int = 50
         if filters:
             conditions = []
             for k, v in filters.items():
-                conditions.append(f'"{k}" = ?')
+                if k.endswith("__gt"):
+                    conditions.append(f'"{k[:-4]}" > ?')
+                elif k.endswith("__lt"):
+                    conditions.append(f'"{k[:-4]}" < ?')
+                elif k.endswith("__like"):
+                    conditions.append(f'"{k[:-6]}" LIKE ?')
+                elif k.endswith("__in") and isinstance(v, list):
+                    placeholders = ", ".join(["?"] * len(v))
+                    conditions.append(f'"{k[:-4]}" IN ({placeholders})')
+                    params.extend(v)
+                    continue
+                else:
+                    conditions.append(f'"{k}" = ?')
                 params.append(v)
             query += " WHERE " + " AND ".join(conditions)
         query += " LIMIT ? OFFSET ?"

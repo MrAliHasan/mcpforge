@@ -77,7 +77,7 @@ class MySQLConnector(BaseConnector):
         # Get all tables
         cursor.execute(
             """
-            SELECT TABLE_NAME
+            SELECT TABLE_NAME, TABLE_COMMENT
             FROM information_schema.TABLES
             WHERE TABLE_SCHEMA = %s
               AND TABLE_TYPE = 'BASE TABLE'
@@ -85,7 +85,9 @@ class MySQLConnector(BaseConnector):
             """,
             (db_name,),
         )
-        table_names = [row["TABLE_NAME"] for row in cursor.fetchall()]
+        table_rows = cursor.fetchall()
+        table_names = [row["TABLE_NAME"] for row in table_rows]
+        table_comments = {row["TABLE_NAME"]: row["TABLE_COMMENT"] for row in table_rows if row["TABLE_COMMENT"]}
 
         for table_name in table_names:
             # Get columns with primary key info
@@ -96,7 +98,8 @@ class MySQLConnector(BaseConnector):
                     DATA_TYPE,
                     IS_NULLABLE,
                     COLUMN_KEY,
-                    COLUMN_DEFAULT
+                    COLUMN_DEFAULT,
+                    COLUMN_COMMENT
                 FROM information_schema.COLUMNS
                 WHERE TABLE_SCHEMA = %s
                   AND TABLE_NAME = %s
@@ -112,6 +115,7 @@ class MySQLConnector(BaseConnector):
                     type=map_sql_type(col["DATA_TYPE"]),
                     nullable=col["IS_NULLABLE"] == "YES",
                     primary_key=col["COLUMN_KEY"] == "PRI",
+                    description=col["COLUMN_COMMENT"] if col["COLUMN_COMMENT"] else None,
                 ))
 
             # Get row count
@@ -127,6 +131,7 @@ class MySQLConnector(BaseConnector):
                 name=table_name,
                 columns=columns,
                 row_count=row_count,
+                description=table_comments.get(table_name),
             ))
 
         # Discover foreign key relationships
