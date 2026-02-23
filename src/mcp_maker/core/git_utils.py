@@ -1,4 +1,3 @@
-import os
 import subprocess
 from rich.console import Console
 
@@ -40,9 +39,12 @@ def commit_schema_changes(output_dir: str, files_to_commit: list[str], diff: dic
             changed = len(diff.get("column_changes", {}))
             
             details = []
-            if added: details.append(f"+{added} tab")
-            if removed: details.append(f"-{removed} tab")
-            if changed: details.append(f"~{changed} alt")
+            if added:
+                details.append(f"+{added} tab")
+            if removed:
+                details.append(f"-{removed} tab")
+            if changed:
+                details.append(f"~{changed} alt")
             
             if details:
                 msg += f"\n\nChanges: {', '.join(details)}."
