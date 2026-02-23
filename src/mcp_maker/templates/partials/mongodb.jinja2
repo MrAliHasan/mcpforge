@@ -11,6 +11,7 @@ _client = MongoClient(DATABASE_URL)
 _db = _client[_db_name]
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # Collection: {{ table.name }}
@@ -20,7 +21,7 @@ _db = _client[_db_name]
 {% endif %}
 # ═══════════════════════════════════════════════════════
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List documents from the '{{ table.name }}' collection.
@@ -170,7 +171,7 @@ def schema_{{ table.name }}() -> dict:
     }
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def insert_{{ table.name }}(data: dict) -> dict:
     """Insert a new document into '{{ table.name }}'."""
@@ -182,7 +183,7 @@ def insert_{{ table.name }}(data: dict) -> dict:
         raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
 {% endif %}
 
-{% if 'update' in ops %}
+{% if 'update' in tbl_ops %}
 @mcp.tool()
 def update_{{ table.name }}_by_id(id: str, data: dict) -> dict:
     """Update a document in '{{ table.name }}' by its _id."""
@@ -198,7 +199,7 @@ def update_{{ table.name }}_by_id(id: str, data: dict) -> dict:
         raise RuntimeError(f"update_{{ table.name }}_by_id failed: {e}") from e
 {% endif %}
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def delete_{{ table.name }}_by_id(id: str) -> dict:
     """Delete a document from '{{ table.name }}' by its _id."""
@@ -213,7 +214,7 @@ def delete_{{ table.name }}_by_id(id: str) -> dict:
         raise RuntimeError(f"delete_{{ table.name }}_by_id failed: {e}") from e
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
     """Insert multiple documents into '{{ table.name }}'.
@@ -230,7 +231,7 @@ def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
         raise RuntimeError(f"batch_insert_{{ table.name }} failed: {e}") from e
 {% endif %}
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def batch_delete_{{ table.name }}(ids: list[str]) -> dict:
     """Delete multiple documents from '{{ table.name }}' by their _id values.

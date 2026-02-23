@@ -21,6 +21,7 @@ if _API_TOKEN:
     _http_client.headers["Authorization"] = f"Bearer {_API_TOKEN}"
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # Endpoint: {{ table.description }}

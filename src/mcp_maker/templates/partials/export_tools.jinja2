@@ -1,0 +1,41 @@
+# ─── Export Tools ───
+
+import csv as _csv
+import io as _io
+import json as _json
+
+{% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
+{% set tbl_ops = rbac_config.get(table.name | lower, tbl_ops) if rbac_config else tbl_ops %}
+{% if 'read' in tbl_ops %}
+@mcp.tool()
+def export_{{ table.name }}_csv(limit: int = 1000) -> str:
+    """Export '{{ table.name }}' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    result = list_{{ table.name }}(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_{{ table.name }}_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export '{{ table.name }}' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    result = list_{{ table.name }}(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+{% endif %}
+{% endfor %}

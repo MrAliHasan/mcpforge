@@ -1,0 +1,8 @@
+tables:
+  users:
+    ops:
+      - read
+      - update
+  orders:
+    ops:
+      - read

@@ -13,6 +13,7 @@ _wb = openpyxl.load_workbook(EXCEL_PATH, read_only=True, data_only=True)
 _EXCEL_DATA = {}
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 _sheet = _wb["{{ table.description }}"]
 _rows = list(_sheet.iter_rows(values_only=True))
 _headers = [str(h).strip() if h is not None else f"col_{i}" for i, h in enumerate(_rows[0])] if _rows else []
@@ -26,6 +27,7 @@ _EXCEL_DATA["{{ table.name }}"] = [
 _wb.close()
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # Sheet: {{ table.description }} → {{ table.name }}
@@ -35,7 +37,7 @@ _wb.close()
 {% endif %}
 # ═══════════════════════════════════════════════════════
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List rows from the '{{ table.description }}' sheet.
@@ -87,7 +89,7 @@ def get_{{ table.name }}_by_row(row_number: int) -> dict | None:
         raise RuntimeError(f"get_{{ table.name }}_by_row failed: {e}") from e
 {% endif %}
 
-{% if table.searchable_columns and 'read' in ops %}
+{% if table.searchable_columns and 'read' in tbl_ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.description }}' sheet by text matching."""
@@ -107,7 +109,7 @@ def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> lis
         raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
 {% endif %}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in the '{{ table.description }}' sheet."""

@@ -16,56 +16,30 @@ def _load_connectors():
     from mcp_maker.connectors import sqlite  # noqa: F401
     from mcp_maker.connectors import files  # noqa: F401
 
+    def _try_load(name: str):
+        import importlib
+        try:
+            importlib.import_module(f"mcp_maker.connectors.{name}")
+        except ImportError as e:
+            # Only ignore if the failure is gracefully missing a 3rd-party dep.
+            if e.name != f"mcp_maker.connectors.{name}" and "No module named" not in str(e):
+                import logging
+                logging.warning(f"Failed to load connector '{name}': {e}")
+        except Exception as e:
+            import logging
+            logging.warning(f"Failed to load connector '{name}' due to error: {e}")
+
     # Optional connectors — only load if dependencies available
-    try:
-        from mcp_maker.connectors import postgres  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import mysql  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import airtable  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import gsheets  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import notion  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import excel  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import mongodb  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import supabase  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import openapi  # noqa: F401
-    except ImportError:
-        pass
-
-    try:
-        from mcp_maker.connectors import redis_connector  # noqa: F401
-    except ImportError:
-        pass
+    _try_load("postgres")
+    _try_load("mysql")
+    _try_load("airtable")
+    _try_load("gsheets")
+    _try_load("notion")
+    _try_load("excel")
+    _try_load("mongodb")
+    _try_load("supabase")
+    _try_load("openapi")
+    _try_load("redis_connector")
 
 def _print_schema_summary(schema):
     """Pretty-print a schema summary using Rich."""
@@ -181,6 +155,31 @@ def init(
         "--cache",
         help="Enable smart caching with TTL in seconds (e.g., --cache 60). 0 = disabled.",
     ),
+    cache_backend: str = typer.Option(
+        "memory",
+        "--cache-backend",
+        help="Cache backend to use ('memory' or a redis:// URL).",
+    ),
+    rate_limit: float = typer.Option(
+        0.0,
+        "--rate-limit",
+        help="Global rate limit for all generated tools in requests per second. 0 = disabled.",
+    ),
+    template_dir: str = typer.Option(
+        None,
+        "--template-dir",
+        help="Path to a directory containing custom Jinja2 templates to override the defaults.",
+    ),
+    config: str = typer.Option(
+        None,
+        "--config",
+        help="Path to a YAML/JSON configuration file for granular RBAC.",
+    ),
+    auto_commit: bool = typer.Option(
+        False,
+        "--auto-commit",
+        help="Automatically commit generated changes to git if inside a repository.",
+    ),
     webhooks: bool = typer.Option(
         False,
         "--webhooks",
@@ -290,6 +289,27 @@ def init(
     if ops:
         parsed_ops = [op.strip().lower() for op in ops.split(",") if op.strip()]
 
+    # Parse RBAC config if provided
+    rbac_config = None
+    if config:
+        if not os.path.exists(config):
+            console.print(f"\n[red]Error:[/red] Config file not found: {config}")
+            raise typer.Exit(code=1)
+        try:
+            import yaml
+            with open(config, "r", encoding="utf-8") as f:
+                cfg_data = yaml.safe_load(f)
+            
+            if isinstance(cfg_data, dict) and "tables" in cfg_data:
+                rbac_config = {}
+                for tbl_name, tbl_cfg in cfg_data["tables"].items():
+                    if "ops" in tbl_cfg:
+                        rbac_config[tbl_name.lower()] = [o.lower() for o in tbl_cfg["ops"]]
+            console.print(f"  🔒 Loaded RBAC config from: [cyan]{config}[/cyan]")
+        except Exception as e:
+            console.print(f"\n[red]Error parsing config file:[/red] {e}")
+            raise typer.Exit(code=1)
+
     # Warn about monolithic scaling for large schemas
     table_count = len(schema.tables)
     if table_count > 20:
@@ -347,21 +367,28 @@ def init(
 
     # Step 4: Generate server
     with console.status("[bold green]Generating MCP server..."):
+        limit_kwargs = {
+            "default_limit": default_limit,
+            "max_limit": max_limit,
+            "audit": audit,
+            "consolidate_threshold": consolidate_threshold,
+            "ssl_enabled": not no_ssl,
+            "auth_mode": auth,
+            "async_mode": async_mode,
+            "cache_ttl": cache,
+            "cache_backend": cache_backend,
+            "rate_limit": rate_limit,
+            "template_dir": template_dir,
+            "webhooks": webhooks,
+        }
         server_path, autogen_path, server_created = write_server(
             schema,
             output_dir=output,
             filename=filename,
             ops=parsed_ops,
+            rbac_config=rbac_config,
             semantic=semantic,
-            default_limit=default_limit,
-            max_limit=max_limit,
-            audit=audit,
-            consolidate_threshold=consolidate_threshold,
-            ssl_enabled=not no_ssl,
-            auth_mode=auth,
-            async_mode=async_mode,
-            cache_ttl=cache,
-            webhooks=webhooks,
+            **limit_kwargs
         )
 
     # Generate .env.example with placeholder (never embed real credentials)
@@ -388,6 +415,18 @@ def init(
     console.print(f"  ♻️  Updated: [bold cyan]{autogen_path}[/bold cyan] (Auto-generated tools)")
     console.print(f"  🔐 Created: [bold cyan]{env_example_path}[/bold cyan]")
     
+    if auto_commit:
+        from mcp_maker.core.git_utils import commit_schema_changes
+        diff_to_pass = None
+        if not force and 'old_lock' in locals() and old_lock and old_hash != new_hash:
+            diff_to_pass = diff
+            
+        files_to_commit = [os.path.basename(autogen_path), ".mcp-maker.lock", ".env.example", ".gitignore"]
+        if server_created:
+            files_to_commit.append(os.path.basename(server_path))
+            
+        commit_schema_changes(output, files_to_commit, diff=diff_to_pass)
+
     console.print(f"  🔧 [yellow]Operations enabled:[/yellow] {', '.join(op.upper() for op in parsed_ops)}")
     if semantic:
         console.print("  🧠 [magenta]Semantic search enabled[/magenta] (ChromaDB vector search)")
@@ -489,7 +528,8 @@ def test(
     Imports the generated server, finds all tools, and invokes each
     list_ tool to verify the server starts and returns data.
     """
-    import ast
+    import sys
+    import importlib.util
 
     console.print()
     autogen_module = f"_autogen_{os.path.splitext(filename)[0]}"
@@ -500,25 +540,36 @@ def test(
         console.print("  [dim]Generate a server first with:[/dim] mcp-maker init <source>")
         raise typer.Exit(code=1)
 
-    # Parse the autogen file to find all tool definitions
-    with open(autogen_path, "r", encoding="utf-8") as f:
-        source = f.read()
-
-    # Find all function definitions decorated with @mcp.tool()
+    # Dynamically import the generated server module
+    sys.path.insert(0, os.path.abspath(output))
     try:
-        tree = ast.parse(source)
+        spec = importlib.util.spec_from_file_location(autogen_module, autogen_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
     except SyntaxError as e:
         console.print(f"[red]SyntaxError in generated code:[/red] {e}")
         raise typer.Exit(code=1)
+    except Exception as e:
+        console.print(f"[red]Failed to import generated code:[/red] {e}")
+        raise typer.Exit(code=1)
+    finally:
+        sys.path.pop(0)
 
+    if not hasattr(module, "mcp"):
+        console.print("[red]Error:[/red] 'mcp' instance not found in generated code.")
+        raise typer.Exit(code=1)
+
+    mcp_instance = module.mcp
     tool_funcs = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
-            for dec in node.decorator_list:
-                if isinstance(dec, ast.Call):
-                    func = dec.func
-                    if isinstance(func, ast.Attribute) and func.attr == "tool":
-                        tool_funcs.append(node.name)
+    
+    if hasattr(mcp_instance, "_tool_registry"):
+        tool_funcs = list(mcp_instance._tool_registry.keys())
+    else:
+        import inspect
+        prefixes = ("list_", "get_", "search_", "count_", "schema_", "aggregate_", "insert_", "update_", "delete_", "batch_", "export_", "webhook_", "server_health", "join_", "query_database", "describe_table")
+        for name, obj in inspect.getmembers(module):
+            if callable(obj) and name.startswith(prefixes):
+                tool_funcs.append(name)
 
     console.print(f"  📂 [cyan]{autogen_path}[/cyan]")
     console.print(f"  🔧 Found [bold]{len(tool_funcs)}[/bold] tools:")
@@ -535,25 +586,23 @@ def test(
             prefix = "join_"
         elif fn.startswith("webhook_"):
             prefix = "webhook_"
+        elif fn == "server_health":
+            prefix = "system_"
+        elif fn == "query_database" or fn == "describe_table":
+            prefix = "consolidated_"
         categories.setdefault(prefix, []).append(fn)
 
     for cat, fns in sorted(categories.items()):
-        console.print(f"    [dim]{cat}*[/dim]: {len(fns)} tools")
+        console.print(f"    [dim]{cat}[/dim]: {len(fns)} tools")
 
-    # Syntax check the generated code
     console.print()
-    try:
-        compile(source, autogen_path, "exec")
-        console.print("  ✅ [green]Syntax check passed[/green]")
-    except SyntaxError as e:
-        console.print(f"  ❌ [red]Syntax error:[/red] {e}")
-        raise typer.Exit(code=1)
+    console.print("  ✅ [green]Syntax check passed via dynamic import[/green]")
 
     # List all list_ tools
     list_tools = [fn for fn in tool_funcs if fn.startswith("list_")]
     console.print(f"  ✅ [green]{len(list_tools)} list tools available for smoke testing[/green]")
     for fn in list_tools:
-        console.print(f"    • {fn}(limit, offset, sort_field, sort_direction)")
+        console.print(f"    • {fn}(...)")
 
     console.print()
     console.print("  [bold green]All checks passed![/bold green] 🎉")

@@ -18,6 +18,7 @@ base = api.base(BASE_ID)
 # Table name mapping (safe name -> original Airtable name)
 TABLE_NAMES = {
     {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
     "{{ table.name }}": "{{ table.description }}",
     {% endfor %}
 }
@@ -25,6 +26,7 @@ TABLE_NAMES = {
 # View name mapping per table
 TABLE_VIEWS = {
     {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
     {% set views = schema.metadata.get('table_views_map', {}).get(table.name, []) %}
     "{{ table.name }}": {
         {% for view in views %}
@@ -35,6 +37,7 @@ TABLE_VIEWS = {
 }
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # Table: {{ table.description }} (as {{ table.name }})
@@ -78,7 +81,7 @@ def _to_airtable_{{ table.name }}(data: dict) -> dict:
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(
     limit: int = {{ default_limit }},
@@ -124,7 +127,7 @@ def list_{{ table.name }}(
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def get_{{ table.name }}_by_record_id(record_id: str) -> dict | None:
     """Get a single record from '{{ table.description }}' by its Airtable record ID.
@@ -144,7 +147,7 @@ def get_{{ table.name }}_by_record_id(record_id: str) -> dict | None:
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search '{{ table.description }}' by matching against text fields.
@@ -196,7 +199,7 @@ def filter_{{ table.name }}(formula: str, limit: int = {{ default_limit }}) -> l
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of records in '{{ table.description }}'."""
@@ -210,7 +213,7 @@ def count_{{ table.name }}() -> int:
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema of the '{{ table.description }}' table.
@@ -235,7 +238,7 @@ def schema_{{ table.name }}() -> dict:
 {% set views = schema.metadata.get('table_views_map', {}).get(table.name, []) %}
 {% if views %}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}_views() -> list[dict]:
     """List all available views for the '{{ table.description }}' table.
@@ -252,7 +255,7 @@ def list_{{ table.name }}_views() -> list[dict]:
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}_by_view(view_name: str, limit: int = {{ default_limit }}) -> list[dict]:
     """List records from '{{ table.description }}' through a specific Airtable view.
@@ -275,7 +278,7 @@ def list_{{ table.name }}_by_view(view_name: str, limit: int = {{ default_limit 
 
 {% endif %}
 
-{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
+{% if 'insert' in tbl_ops or 'update' in tbl_ops or 'delete' in tbl_ops %}
 
 @mcp.tool()
 def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
@@ -305,7 +308,7 @@ def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
 
 
 
-{% if 'update' in ops %}
+{% if 'update' in tbl_ops %}
 @mcp.tool()
 def update_{{ table.name }}(record_id: str, {% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
     """Update an existing record in '{{ table.description }}'.
@@ -341,7 +344,7 @@ def update_{{ table.name }}(record_id: str, {% for col in table.columns %}{{ col
 
 
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def delete_{{ table.name }}(record_id: str) -> dict:
     """Delete a record from '{{ table.description }}'.

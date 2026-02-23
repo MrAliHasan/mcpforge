@@ -19,6 +19,7 @@ def _get_text_for_record(record: dict) -> str:
     return " | ".join(parts)
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 # ─── Semantic Index: {{ table.name }} ───
 
 def _build_index_{{ table.name }}():

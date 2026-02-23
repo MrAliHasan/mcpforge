@@ -204,6 +204,38 @@ class TestGeneratedCodePatterns:
                 os.unlink("mcp_server.py")
 
 
+class TestRBAC:
+    def test_rbac_filters_operations(self):
+        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+        
+        schema = DataSourceSchema(
+            source_type="sqlite",
+            source_uri="sqlite:///test.db",
+            tables=[
+                Table(name="users", columns=[Column(name="id", type=ColumnType.INTEGER, primary_key=True)]),
+                Table(name="orders", columns=[Column(name="id", type=ColumnType.INTEGER, primary_key=True)]),
+            ]
+        )
+        
+        # Test global ops
+        server_code, autogen_code = generate_server_code(schema, ops=["read", "insert"])
+        assert "def list_users(" in autogen_code
+        assert "def list_orders(" in autogen_code
+        assert "def insert_orders(" in autogen_code
+        
+        # Test granular RBAC config
+        rbac_config = {
+            "users": ["read"],
+            "orders": ["insert"]
+        }
+        
+        server_code, autogen_code = generate_server_code(schema, ops=["read", "insert"], rbac_config=rbac_config)
+        assert "def list_users(" in autogen_code    # users has read
+        assert "def insert_users(" not in autogen_code # users missing insert
+        
+        assert "def list_orders(" not in autogen_code  # orders missing read
+        assert "def insert_orders(" in autogen_code   # orders has insert
+
 class TestSecurityHardening:
     """Tests to verify that production security hardening is applied."""
 

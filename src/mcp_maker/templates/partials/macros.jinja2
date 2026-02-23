@@ -38,7 +38,8 @@ def schema_{{ table.name }}() -> dict:
 {# ─── Consolidated Mode: Table Whitelist + Validator ─── #}
 {% macro consolidated_whitelist(tables) %}
 # Known tables discovered at generation time — prevents SQL injection
-_KNOWN_TABLES = { {% for table in tables %}"{{ table.name }}", {% endfor %} }
+_KNOWN_TABLES = { {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}"{{ table.name }}", {% endfor %} }
 
 def _validate_table(name: str) -> str:
     """Validate that a table name is in the known set to prevent SQL injection."""

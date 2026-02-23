@@ -15,6 +15,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 _supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # Table: {{ table.name }}
@@ -24,7 +25,7 @@ _supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 {% endif %}
 # ═══════════════════════════════════════════════════════
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List rows from the '{{ table.name }}' table.
@@ -128,7 +129,7 @@ def schema_{{ table.name }}() -> dict:
     }
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def insert_{{ table.name }}(data: dict) -> dict:
     """Insert a new row into '{{ table.name }}'."""
@@ -139,7 +140,7 @@ def insert_{{ table.name }}(data: dict) -> dict:
         raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
 {% endif %}
 
-{% if 'update' in ops and table.primary_key_columns %}
+{% if 'update' in tbl_ops and table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 @mcp.tool()
 def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, data: dict) -> dict:
@@ -151,7 +152,7 @@ def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
         raise RuntimeError(f"update_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
 {% endif %}
 
-{% if 'delete' in ops and table.primary_key_columns %}
+{% if 'delete' in tbl_ops and table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 @mcp.tool()
 def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
@@ -163,7 +164,7 @@ def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
         raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
     """Insert multiple rows into '{{ table.name }}'.
@@ -178,7 +179,7 @@ def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
         raise RuntimeError(f"batch_insert_{{ table.name }} failed: {e}") from e
 {% endif %}
 
-{% if 'delete' in ops and table.primary_key_columns %}
+{% if 'delete' in tbl_ops and table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 @mcp.tool()
 def batch_delete_{{ table.name }}(ids: list) -> dict:

@@ -170,12 +170,13 @@ def delete_record(table_name: str, filters: dict) -> dict:
 {% else %}
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 {{ m.table_header(table) }}
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None{% for col in table.columns if col.type.value in ('date', 'datetime') %}, {{ col.name }}_from: str | None = None, {{ col.name }}_to: str | None = None{% endfor %}) -> dict:
     """List rows from the '{{ table.name }}' table.
@@ -250,7 +251,7 @@ def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sor
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
     """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
@@ -274,7 +275,7 @@ def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.val
 
 {% if table.searchable_columns %}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.name }}' table by matching against text columns.
@@ -317,7 +318,7 @@ def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> lis
 {% endif %}
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in the '{{ table.name }}' table."""
@@ -338,7 +339,7 @@ def count_{{ table.name }}() -> int:
 
 {{ m.schema_tool(table, ops) }}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def aggregate_{{ table.name }}(group_by: str, agg_function: str = "count", agg_column: str = "*", limit: int = 20) -> list[dict]:
     """Aggregate data in '{{ table.name }}' using GROUP BY.
@@ -375,11 +376,11 @@ def aggregate_{{ table.name }}(group_by: str, agg_function: str = "count", agg_c
         _put_connection(conn)
 {% endif %}
 
-{% if ('insert' in ops or 'update' in ops or 'delete' in ops) and table.primary_key_columns %}
+{% if ('insert' in tbl_ops or 'update' in tbl_ops or 'delete' in tbl_ops) and table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Insert a new row into the '{{ table.name }}' table."""
@@ -413,7 +414,7 @@ def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %
 
 
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
     """Delete a row from the '{{ table.name }}' table."""
@@ -435,7 +436,7 @@ def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
         _put_connection(conn)
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
     """Insert multiple rows into '{{ table.name }}' in a single transaction.
@@ -467,7 +468,7 @@ def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
         _put_connection(conn)
 {% endif %}
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def batch_delete_{{ table.name }}(ids: list) -> dict:
     """Delete multiple rows from '{{ table.name }}' by their {{ pk.name }} values.

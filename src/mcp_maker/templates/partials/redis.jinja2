@@ -14,6 +14,7 @@ _redis = _redis_lib.Redis(
 )
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # Key Group: {{ table.description }}
@@ -26,7 +27,7 @@ _redis = _redis_lib.Redis(
 {% if type_info == 'string' %}
 {# ─── String Key Tools ─── #}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
     """List string keys matching '{{ prefix }}:*'.
@@ -73,7 +74,7 @@ def count_{{ table.name }}() -> int:
     return count
 {% endif %}
 
-{% if 'insert' in ops or 'update' in ops %}
+{% if 'insert' in tbl_ops or 'update' in tbl_ops %}
 @mcp.tool()
 def set_{{ table.name }}(key: str, value: str, ttl: int | None = None) -> dict:
     """Set a string key-value pair.
@@ -90,7 +91,7 @@ def set_{{ table.name }}(key: str, value: str, ttl: int | None = None) -> dict:
     return {"key": key, "status": "ok"}
 {% endif %}
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def delete_{{ table.name }}(key: str) -> dict:
     """Delete a key."""
@@ -101,7 +102,7 @@ def delete_{{ table.name }}(key: str) -> dict:
 {% elif type_info == 'hash' %}
 {# ─── Hash Key Tools ─── #}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
     """List hash keys matching '{{ prefix }}:*' with all their fields.
@@ -174,7 +175,7 @@ def count_{{ table.name }}() -> int:
     return count
 {% endif %}
 
-{% if 'insert' in ops or 'update' in ops %}
+{% if 'insert' in tbl_ops or 'update' in tbl_ops %}
 @mcp.tool()
 def set_{{ table.name }}(key: str, data: dict) -> dict:
     """Set all fields of a hash key."""
@@ -182,7 +183,7 @@ def set_{{ table.name }}(key: str, data: dict) -> dict:
     return {"key": key, "status": "ok", "fields": len(data)}
 {% endif %}
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def delete_{{ table.name }}(key: str) -> dict:
     """Delete a hash key."""
@@ -193,7 +194,7 @@ def delete_{{ table.name }}(key: str) -> dict:
 {% elif type_info == 'list' %}
 {# ─── List Key Tools ─── #}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
     """List keys containing Redis lists matching '{{ prefix }}:*'."""
@@ -223,7 +224,7 @@ def get_{{ table.name }}(key: str, start: int = 0, stop: int = -1) -> dict:
     return {"key": key, "values": values, "length": _redis.llen(key)}
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def push_{{ table.name }}(key: str, value: str, side: str = "right") -> dict:
     """Push a value to a Redis list.
@@ -243,7 +244,7 @@ def push_{{ table.name }}(key: str, value: str, side: str = "right") -> dict:
 {% elif type_info == 'set' %}
 {# ─── Set Key Tools ─── #}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
     """List Redis set keys matching '{{ prefix }}:*'."""
@@ -272,7 +273,7 @@ def get_{{ table.name }}(key: str) -> dict:
     return {"key": key, "members": members, "cardinality": len(members)}
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def add_{{ table.name }}(key: str, member: str) -> dict:
     """Add a member to a Redis set."""
@@ -283,7 +284,7 @@ def add_{{ table.name }}(key: str, member: str) -> dict:
 {% elif type_info == 'zset' %}
 {# ─── Sorted Set Key Tools ─── #}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(pattern: str = "{{ prefix }}:*", limit: int = {{ default_limit }}) -> list[dict]:
     """List Redis sorted set keys matching '{{ prefix }}:*'."""
@@ -320,7 +321,7 @@ def get_{{ table.name }}(key: str, start: int = 0, stop: int = -1) -> dict:
     }
 {% endif %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 def add_{{ table.name }}(key: str, member: str, score: float) -> dict:
     """Add a member with a score to a sorted set."""

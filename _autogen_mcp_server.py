@@ -26,6 +26,7 @@ mcp = FastMCP("sqlite-server")
 
 
 
+
 # ─── Database Connection (Thread-Safe) ───
 
 DB_PATH = DATABASE_URL
@@ -35,7 +36,7 @@ elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
     import warnings
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpkbdtxrhk.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp2j3ocb0k.db"
     warnings.warn(
         f"DATABASE_URL not set. Using hardcoded path: {DB_PATH}. "
         "Set DATABASE_URL environment variable for production use.",
@@ -140,7 +141,6 @@ def _cleanup():
             pass
 
 atexit.register(_cleanup)
-
 # ─── Export Tools ───
 
 import csv as _csv

@@ -1,8 +1,16 @@
 # ─── File Data Source ───
 
-DATA_DIR = DATABASE_URL
+DATA_DIR = _os.path.abspath(DATABASE_URL or ".")
+
+def _safe_filepath(filename: str) -> str:
+    path = _os.path.abspath(_os.path.join(DATA_DIR, filename))
+    # _os.path.commonpath behaves safely if both are absolute
+    if not _os.path.commonpath([DATA_DIR, path]) == DATA_DIR:
+        raise ValueError(f"Path traversal detected: {filename}")
+    return path
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # File: {{ table.name }}
@@ -13,7 +21,7 @@ DATA_DIR = DATABASE_URL
 # ═══════════════════════════════════════════════════════
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List records from the '{{ table.name }}' dataset.
@@ -30,13 +38,13 @@ def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sor
     """
     try:
         limit = min(limit, {{ max_limit }})
-        filepath = _os.path.join(DATA_DIR, "{{ table.name }}.csv")
+        filepath = _safe_filepath("{{ table.name }}.csv")
         if _os.path.exists(filepath):
             with open(filepath, "r", encoding="utf-8-sig") as f:
                 reader = csv.DictReader(f)
                 all_rows = list(reader)
         else:
-            filepath = _os.path.join(DATA_DIR, "{{ table.name }}.json")
+            filepath = _safe_filepath("{{ table.name }}.json")
             if _os.path.exists(filepath):
                 with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
@@ -80,7 +88,7 @@ def get_{{ table.name }}_by_row(row_number: int) -> dict | None:
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.name }}' dataset for matching records.
@@ -135,7 +143,8 @@ def read_{{ resource.name | replace('-', '_') | replace(' ', '_') }}() -> str:
     Returns:
         The full text content of the file.
     """
-    with open("{{ resource.uri }}", "r", encoding="utf-8") as f:
+    safe_uri = _safe_filepath(_os.path.basename("{{ resource.uri | replace('\\\\', '/') }}"))
+    with open(safe_uri, "r", encoding="utf-8") as f:
         return f.read()
 
 {% endfor %}

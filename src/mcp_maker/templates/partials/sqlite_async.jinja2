@@ -105,10 +105,11 @@ async def delete_record(table_name: str, filters: dict) -> dict:
 {% else %}
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 {{ m.table_header(table) }}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 async def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None{% for col in table.columns if col.type.value in ('date', 'datetime') %}, {{ col.name }}_from: str | None = None, {{ col.name }}_to: str | None = None{% endfor %}) -> dict:
     """List rows from the '{{ table.name }}' table.
@@ -161,7 +162,7 @@ async def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 async def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
     """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
@@ -180,7 +181,7 @@ async def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.ty
 {% if table.searchable_columns %}
 {% set search_col = table.searchable_columns[0] %}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 async def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.name }}' table by matching against text columns."""
@@ -207,7 +208,7 @@ async def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) 
 
 {% endif %}
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 async def count_{{ table.name }}() -> int:
     """Get the total number of rows in the '{{ table.name }}' table."""
@@ -220,11 +221,11 @@ async def count_{{ table.name }}() -> int:
 
 {{ m.schema_tool(table, ops) }}
 
-{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
+{% if 'insert' in tbl_ops or 'update' in tbl_ops or 'delete' in tbl_ops %}
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 
-{% if 'insert' in ops %}
+{% if 'insert' in tbl_ops %}
 @mcp.tool()
 async def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Insert a new row into the '{{ table.name }}' table."""
@@ -248,7 +249,7 @@ async def insert_{{ table.name }}({% for col in table.columns if not col.primary
         return await get_{{ table.name }}_by_{{ pk.name }}(new_id)
 {% endif %}
 
-{% if 'update' in ops %}
+{% if 'update' in tbl_ops %}
 @mcp.tool()
 async def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, {% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }} | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
     """Update an existing row in the '{{ table.name }}' table."""
@@ -273,7 +274,7 @@ async def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk
         return await get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }})
 {% endif %}
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 async def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
     """Delete a row from the '{{ table.name }}' table."""

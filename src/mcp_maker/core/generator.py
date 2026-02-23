@@ -42,6 +42,7 @@ def _validate_schema_metadata(schema: DataSourceSchema) -> None:
 def generate_server_code(
     schema: DataSourceSchema,
     ops: list[str] = None,
+    rbac_config: dict[str, list[str]] | None = None,
     semantic: bool = False,
     default_limit: int = 50,
     max_limit: int = 500,
@@ -53,6 +54,9 @@ def generate_server_code(
     auth_mode: str = "none",
     async_mode: bool = False,
     cache_ttl: int = 0,
+    cache_backend: str = "memory",
+    rate_limit: float = 0.0,
+    template_dir: str | None = None,
     webhooks: bool = False,
 ) -> tuple[str, str]:
     """Generate complete MCP server Python code from a schema.
@@ -66,8 +70,16 @@ def generate_server_code(
     # Validate schema has required metadata for the connector type
     _validate_schema_metadata(schema)
 
+    loader_paths = []
+    if template_dir:
+        loader_path = Path(template_dir).resolve()
+        if not loader_path.is_dir():
+            raise ValueError(f"Custom template directory not found: {template_dir}")
+        loader_paths.append(str(loader_path))
+    loader_paths.append(str(TEMPLATE_DIR))
+
     env = Environment(
-        loader=FileSystemLoader(str(TEMPLATE_DIR)),
+        loader=FileSystemLoader(loader_paths),
         autoescape=False,  # Generating Python code, not HTML
         trim_blocks=True,
         lstrip_blocks=True,
@@ -85,6 +97,7 @@ def generate_server_code(
         "resources": schema.resources,
         "foreign_keys": schema.foreign_keys,
         "ops": ops,
+        "rbac_config": rbac_config,
         "semantic": semantic,
         "default_limit": default_limit,
         "max_limit": max_limit,
@@ -96,6 +109,8 @@ def generate_server_code(
         "auth_mode": auth_mode,
         "async_mode": async_mode,
         "cache_ttl": cache_ttl,
+        "cache_backend": cache_backend,
+        "rate_limit": rate_limit,
         "webhooks": webhooks,
     }
 
@@ -136,6 +151,7 @@ def write_server(
     output_dir: str = ".",
     filename: str = "mcp_server.py",
     ops: list[str] = None,
+    rbac_config: dict[str, list[str]] | None = None,
     semantic: bool = False,
     default_limit: int = 50,
     max_limit: int = 500,
@@ -145,6 +161,9 @@ def write_server(
     auth_mode: str = "none",
     async_mode: bool = False,
     cache_ttl: int = 0,
+    cache_backend: str = "memory",
+    rate_limit: float = 0.0,
+    template_dir: str | None = None,
     webhooks: bool = False,
 ) -> tuple[str, str, bool]:
     """Write generated MCP server files.
@@ -162,6 +181,7 @@ def write_server(
     server_code, autogen_code = generate_server_code(
         schema, 
         ops=ops, 
+        rbac_config=rbac_config,
         semantic=semantic, 
         default_limit=default_limit, 
         max_limit=max_limit,
@@ -173,6 +193,9 @@ def write_server(
         auth_mode=auth_mode,
         async_mode=async_mode,
         cache_ttl=cache_ttl,
+        cache_backend=cache_backend,
+        rate_limit=rate_limit,
+        template_dir=template_dir,
         webhooks=webhooks,
     )
 

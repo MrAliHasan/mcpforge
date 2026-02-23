@@ -25,11 +25,13 @@ spreadsheet = gc.open_by_key(SPREADSHEET_ID)
 # Sheet name mapping (safe name -> original sheet tab name)
 SHEET_NAMES = {
     {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
     "{{ table.name }}": "{{ table.description }}",
     {% endfor %}
 }
 
 {% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
 
 # ═══════════════════════════════════════════════════════
 # Sheet: {{ table.description }} (as {{ table.name }})
@@ -56,7 +58,7 @@ def _normalize_{{ table.name }}(record: dict, row_index: int = 0) -> dict:
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, fields: str | None = None) -> dict:
     """List rows from the '{{ table.description }}' Google Sheet.
@@ -88,7 +90,7 @@ def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, fie
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.description }}' sheet for matching rows.
@@ -112,7 +114,7 @@ def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> lis
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of data rows in '{{ table.description }}'."""
@@ -123,7 +125,7 @@ def count_{{ table.name }}() -> int:
 
 
 
-{% if 'read' in ops %}
+{% if 'read' in tbl_ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the schema of the '{{ table.description }}' sheet."""
@@ -135,7 +137,7 @@ def schema_{{ table.name }}() -> dict:
 {% endif %}
 
 
-{% if 'insert' in ops or 'update' in ops or 'delete' in ops %}
+{% if 'insert' in tbl_ops or 'update' in tbl_ops or 'delete' in tbl_ops %}
 @mcp.tool()
 def append_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Append a new row to the '{{ table.description }}' sheet.
@@ -165,7 +167,7 @@ def append_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
 
 
 
-{% if 'update' in ops %}
+{% if 'update' in tbl_ops %}
 @mcp.tool()
 def update_{{ table.name }}_cell(row_number: int, field: str, value: str) -> dict:
     """Update a single cell in '{{ table.description }}'.
@@ -190,7 +192,7 @@ def update_{{ table.name }}_cell(row_number: int, field: str, value: str) -> dic
     return {"updated": True, "row": row_number, "field": field, "value": value}
 {% endif %}
 
-{% if 'delete' in ops %}
+{% if 'delete' in tbl_ops %}
 @mcp.tool()
 def delete_{{ table.name }}_row(row_number: int) -> dict:
     """Delete a row from '{{ table.description }}'.
