@@ -63,6 +63,7 @@ Your Data Source          MCP-Maker              MCP Server
 
 While basic tools stop at simple SQL tables, MCP-Maker's Connectors are engineered for complex enterprise use cases:
 
+- **HubSpot**: Acts as an **Enterprise Data-Bridge**, intelligently auto-discovering custom objects, custom properties, mapping Deal Pipelines natively, resolving `owner_ids` to human names, and exposing batch upsert endpoints.
 - **Notion**: Supports **Multi-Database URIs** (`notion://DB1,DB2`), automatically parses **20+ property types** (Rollups, Relations, Formulas), handles cursor pagination, and exposes deep `filter` tools.
 - **Airtable**: Generates tools to query via Airtable **Formulas**, target specific **Views**, automatically sorts records, and discovers your Bases directly (`mcp-maker bases`).
 - **Google Sheets**: Treats entire tabs as discrete SQL-like tables, infers column types, and provides pinpoint `update_cell` tools.
@@ -135,6 +136,7 @@ That's it. Your AI can now query your data.
 | Supabase | [docs/supabase.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/supabase.md) — Auth/storage tools, PostgREST |
 | REST API | [docs/openapi.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/openapi.md) — OpenAPI/Swagger specs |
 | Redis | [docs/redis.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/redis.md) — Key grouping, type-aware tools |
+| HubSpot | [docs/hubspot.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/hubspot.md) — Enterprise CRM Data-Bridge, PAT auth |
 
 ### Feature Guides
 
@@ -144,27 +146,28 @@ That's it. Your AI can now query your data.
 
 ---
 
-## 🔌 Supported Connectors (12)
+## 🔌 Supported Connectors (13)
 
 | Connector | URI Format | Auth Required | Install |
 |-----------|-----------|-------------|---------|
 | SQLite | `sqlite:///my.db` | ❌ | Built-in |
 | Files | `./data/` | ❌ | Built-in |
-| PostgreSQL | `postgres://user:pass@host/db` | ✅ DB creds | `pip install mcp-maker[postgres]` |
-| MySQL | `mysql://user:pass@host/db` | ✅ DB creds | `pip install mcp-maker[mysql]` |
-| Airtable | `airtable://appXXXX` | ✅ API key | `pip install mcp-maker[airtable]` |
-| Google Sheets | `gsheet://SPREADSHEET_ID` | ✅ Service acct | `pip install mcp-maker[gsheets]` |
-| Notion | `notion://DATABASE_ID` | ✅ Integration | `pip install mcp-maker[notion]` |
-| Excel | `./data.xlsx` or `excel:///path.xlsx` | ❌ | `pip install mcp-maker[excel]` |
-| MongoDB | `mongodb://user:pass@host/db` | ✅ DB creds | `pip install mcp-maker[mongodb]` |
-| Supabase | `supabase://PROJECT_REF` | ✅ API key | `pip install mcp-maker[supabase]` |
-| REST API | `openapi:///path/to/spec.yaml` | ✅ API token | `pip install mcp-maker[openapi]` |
-| Redis | `redis://host:6379/0` | ✅ Password | `pip install mcp-maker[redis]` |
+| PostgreSQL | `postgres://user:pass@host/db` | ✅ DB creds | `pip install "mcp-maker[postgres]"` |
+| MySQL | `mysql://user:pass@host/db` | ✅ DB creds | `pip install "mcp-maker[mysql]"` |
+| Airtable | `airtable://appXXXX` | ✅ API key | `pip install "mcp-maker[airtable]"` |
+| Google Sheets | `gsheet://SPREADSHEET_ID` | ✅ Service acct | `pip install "mcp-maker[gsheets]"` |
+| Notion | `notion://DATABASE_ID` | ✅ Integration | `pip install "mcp-maker[notion]"` |
+| Excel | `./data.xlsx` or `excel:///path.xlsx` | ❌ | `pip install "mcp-maker[excel]"` |
+| MongoDB | `mongodb://user:pass@host/db` | ✅ DB creds | `pip install "mcp-maker[mongodb]"` |
+| Supabase | `supabase://PROJECT_REF` | ✅ API key | `pip install "mcp-maker[supabase]"` |
+| REST API | `openapi:///path/to/spec.yaml` | ✅ API token | `pip install "mcp-maker[openapi]"` |
+| Redis | `redis://host:6379/0` | ✅ Password | `pip install "mcp-maker[redis]"` |
+| HubSpot | `hubspot://pat=YOUR_TOKEN` | ✅ PAT | `pip install "mcp-maker[hubspot]"` |
 
 Install all connectors at once:
 
 ```bash
-pip install mcp-maker[all]
+pip install "mcp-maker[all]"
 ```
 
 ---
@@ -204,37 +207,37 @@ mcp-maker bases                            # Discover Airtable bases
 pip install mcp-maker
 
 # With PostgreSQL support
-pip install mcp-maker[postgres]
+pip install "mcp-maker[postgres]"
 
 # With Airtable support
-pip install mcp-maker[airtable]
+pip install "mcp-maker[airtable]"
 
 # With Google Sheets support
-pip install mcp-maker[gsheets]
+pip install "mcp-maker[gsheets]"
 
 # With Notion support
-pip install mcp-maker[notion]
+pip install "mcp-maker[notion]"
 
 # With semantic search (ChromaDB vector search)
-pip install mcp-maker[semantic]
+pip install "mcp-maker[semantic]"
 
 # With async support
-pip install mcp-maker[async-sqlite]    # aiosqlite
-pip install mcp-maker[async-postgres]  # asyncpg
-pip install mcp-maker[async-mysql]     # aiomysql
+pip install "mcp-maker[async-sqlite]"    # aiosqlite
+pip install "mcp-maker[async-postgres]"  # asyncpg
+pip install "mcp-maker[async-mysql]"     # aiomysql
 
 # New connectors
-pip install mcp-maker[excel]           # Excel (.xlsx)
-pip install mcp-maker[mongodb]         # MongoDB
-pip install mcp-maker[supabase]        # Supabase
-pip install mcp-maker[openapi]         # REST API (OpenAPI specs)
-pip install mcp-maker[redis]           # Redis
+pip install "mcp-maker[excel]"           # Excel (.xlsx)
+pip install "mcp-maker[mongodb]"         # MongoDB
+pip install "mcp-maker[supabase]"        # Supabase
+pip install "mcp-maker[openapi]"         # REST API (OpenAPI specs)
+pip install "mcp-maker[redis]"           # Redis
 
 # All connectors + semantic search + async
-pip install mcp-maker[all]
+pip install "mcp-maker[all]"
 
 # Development
-pip install mcp-maker[dev]
+pip install "mcp-maker[dev]"
 ```
 
 ---

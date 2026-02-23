@@ -1,0 +1,351 @@
+# ─── HubSpot Connection ───
+
+import os
+import requests
+
+HUBSPOT_ACCESS_TOKEN = os.environ.get("HUBSPOT_ACCESS_TOKEN", "")
+
+if not HUBSPOT_ACCESS_TOKEN:
+    raise RuntimeError(
+        "HUBSPOT_ACCESS_TOKEN environment variable is required. "
+        "Create a Private App in your HubSpot portal settings to get this token."
+    )
+
+_hudspot_headers = {
+    "Authorization": f"Bearer {HUBSPOT_ACCESS_TOKEN}",
+    "Content-Type": "application/json",
+}
+
+{% for table in tables %}
+{% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}
+
+# ═══════════════════════════════════════════════════════
+# Object Type: {{ table.name | capitalize }}
+# Properties: {{ table.columns | map(attribute='name') | join(', ') }}
+# ═══════════════════════════════════════════════════════
+
+
+{% if 'read' in tbl_ops %}
+@mcp.tool()
+def list_{{ table.name }}(limit: int = {{ default_limit }}, after: str | None = None, properties: str | None = None) -> dict:
+    """List objects from the '{{ table.name }}' HubSpot CRM.
+
+    Args:
+        limit: Maximum records to return (default: {{ default_limit }}, max: 100).
+        after: Pagination cursor.
+        properties: Comma-separated property internal names to return.
+    """
+    limit = min(limit, 100)
+    params = {"limit": limit}
+    if after:
+        params["after"] = after
+    if properties:
+        params["properties"] = properties
+
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.get(
+            f"https://api.hubapi.com/crm/v3/objects/{{ table.name }}",
+            headers=_hudspot_headers,
+            params=params,
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
+
+@mcp.tool()
+def get_{{ table.name }}_by_id(id: str, properties: str | None = None) -> dict:
+    """Get a single record from '{{ table.name }}' by its ID.
+
+    Args:
+        id: The HubSpot ID.
+        properties: Comma-separated property internal names.
+    """
+    params = {}
+    if properties:
+        params["properties"] = properties
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.get(
+            f"https://api.hubapi.com/crm/v3/objects/{{ table.name }}/{id}",
+            headers=_hudspot_headers,
+            params=params,
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        raise RuntimeError(f"get_{{ table.name }}_by_id failed: {e}") from e
+{% endif %}
+
+{% if 'insert' in tbl_ops or 'update' in tbl_ops %}
+@mcp.tool()
+def batch_upsert_{{ table.name }}(records: list[dict], id_property: str = "email") -> dict:
+    """Batch create or update records in '{{ table.name }}' using a unique identifier.
+
+    Args:
+        records: List of property dicts. Each MUST contain the id_property.
+        id_property: The unique property to use for upserting (e.g. 'email' for contacts).
+    """
+    inputs = []
+    for item in records:
+        if id_property not in item:
+            raise ValueError(f"Record missing required unique property: {id_property}")
+        
+        # Clone properties to pop the ID without mutating original
+        props = dict(item)
+        unique_id = props.pop(id_property)
+        inputs.append({
+            "id": str(unique_id),
+            "idProperty": id_property,
+            "properties": props
+        })
+
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.post(
+            f"https://api.hubapi.com/crm/v3/objects/{{ table.name }}/batch/upsert",
+            headers=_hudspot_headers,
+            json={"inputs": inputs},
+            timeout=15
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        raise RuntimeError(f"batch_upsert_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+{% if 'insert' in tbl_ops %}
+@mcp.tool()
+def create_{{ table.name }}(properties: dict) -> dict:
+    """Create a new record in '{{ table.name }}'.
+
+    Args:
+        properties: Dictionary of property internal names to values.
+        Example: {"firstname": "John", "lastname": "Doe", "email": "john@example.com"}
+    """
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.post(
+            f"https://api.hubapi.com/crm/v3/objects/{{ table.name }}",
+            headers=_hudspot_headers,
+            json={"properties": properties},
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        raise RuntimeError(f"create_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+{% if 'update' in tbl_ops %}
+@mcp.tool()
+def update_{{ table.name }}_by_id(id: str, properties: dict) -> dict:
+    """Update an existing record in '{{ table.name }}'.
+
+    Args:
+        id: The HubSpot ID.
+        properties: Dictionary of property internal names to new values.
+    """
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.patch(
+            f"https://api.hubapi.com/crm/v3/objects/{{ table.name }}/{id}",
+            headers=_hudspot_headers,
+            json={"properties": properties},
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        raise RuntimeError(f"update_{{ table.name }}_by_id failed: {e}") from e
+{% endif %}
+
+{% if 'delete' in tbl_ops %}
+@mcp.tool()
+def delete_{{ table.name }}_by_id(id: str) -> dict:
+    """Delete (archive) a record from '{{ table.name }}'.
+
+    Args:
+        id: The HubSpot ID to archive.
+    """
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.delete(
+            f"https://api.hubapi.com/crm/v3/objects/{{ table.name }}/{id}",
+            headers=_hudspot_headers,
+            timeout=10
+        )
+        response.raise_for_status()
+        return {"archived": True, "id": id}
+    except Exception as e:
+        raise RuntimeError(f"delete_{{ table.name }}_by_id failed: {e}") from e
+{% endif %}
+
+{% endfor %}
+
+
+# ═══════════════════════════════════════════════════════
+# Advanced CRM Compound Tools
+# ═══════════════════════════════════════════════════════
+
+{% if 'read' in ops %}
+@mcp.tool()
+def hubspot_search_crm_objects(object_type: str, filters: list[dict], properties: list[str] | None = None, limit: int = 10, sorts: list[dict] | None = None) -> list[dict]:
+    """Search contacts/companies/deals using MongoDB-like filters.
+
+    Args:
+        object_type: Should be one of 'contacts', 'companies', or 'deals'.
+        filters: Array of filter objects.
+             Example: [{"propertyName": "email", "operator": "EQ", "value": "test@test.com"}]
+             Operators: EQ, NEQ, LT, LTE, GT, GTE, BETWEEN, IN, NOT_IN, HAS_PROPERTY, NOT_HAS_PROPERTY, CONTAINS_TOKEN, NOT_CONTAINS_TOKEN
+        properties: List of specific property names to return.
+        limit: Max rows (default 10).
+        sorts: Array of sort objects. Example: [{"propertyName": "createdate", "direction": "DESCENDING"}]
+    """
+    body = {
+        "filterGroups": [{"filters": filters}],
+        "limit": min(limit, 100)
+    }
+    if properties:
+        body["properties"] = properties
+    if sorts:
+        body["sorts"] = sorts
+
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.post(
+            f"https://api.hubapi.com/crm/v3/objects/{object_type}/search",
+            headers=_hudspot_headers,
+            json=body,
+            timeout=15
+        )
+        response.raise_for_status()
+        return response.json().get("results", [])
+    except Exception as e:
+        raise RuntimeError(f"hubspot_search_crm_objects failed: {e}") from e
+
+@mcp.tool()
+def hubspot_get_owners() -> list[dict]:
+    """Retrieve all HubSpot Owners (Users) to map owner_id to human names and emails."""
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.get(
+            "https://api.hubapi.com/crm/v3/owners/",
+            headers=_hudspot_headers,
+            timeout=10
+        )
+        if response.status_code in [401, 403]:
+            return [{"error": "Missing 'crm.objects.owners.read' scope."}]
+        response.raise_for_status()
+        return response.json().get("results", [])
+    except Exception as e:
+        raise RuntimeError(f"hubspot_get_owners failed: {e}") from e
+
+@mcp.tool()
+def hubspot_get_deal_pipelines() -> list[dict]:
+    """Retrieve all Deal Pipelines and their specific Sales Stages and win probabilities."""
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.get(
+            "https://api.hubapi.com/crm/v3/pipelines/deals",
+            headers=_hudspot_headers,
+            timeout=10
+        )
+        if response.status_code in [401, 403]:
+            return [{"error": "Missing pipeline scopes."}]
+        response.raise_for_status()
+        return response.json().get("results", [])
+    except Exception as e:
+        raise RuntimeError(f"hubspot_get_deal_pipelines failed: {e}") from e
+
+@mcp.tool()
+def hubspot_get_lists() -> list[dict]:
+    """Retrieve all Audience Segmentation Lists from the CRM."""
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.get(
+            "https://api.hubapi.com/crm/v3/lists",
+            headers=_hudspot_headers,
+            timeout=10
+        )
+        if response.status_code in [401, 403]:
+            return [{"error": "Missing 'crm.lists.read' scope."}]
+        response.raise_for_status()
+        return response.json().get("lists", [])
+    except Exception as e:
+        raise RuntimeError(f"hubspot_get_lists failed: {e}") from e
+{% endif %}
+
+{% if 'insert' in ops or 'update' in ops %}
+@mcp.tool()
+def hubspot_associate_objects(from_object_type: str, from_id: str, to_object_type: str, to_id: str, association_type: str) -> dict:
+    """Smart Object Associations (link completely different objects).
+
+    Link records in HubSpot. For example, link a Contact (from_object_type=contacts) 
+    to a Company (to_object_type=companies).
+
+    Args:
+        from_object_type: e.g. 'contacts', 'companies', 'deals'
+        from_id: The ID of the source record
+        to_object_type: e.g. 'contacts', 'companies', 'deals'
+        to_id: The ID of the target record
+        association_type: The association category string or id. Use standard defaults: 
+            'contact_to_company', 'company_to_contact', 'deal_to_contact', 'contact_to_deal'
+    """
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.put(
+            f"https://api.hubapi.com/crm/v3/objects/{from_object_type}/{from_id}/associations/{to_object_type}/{to_id}/{association_type}",
+            headers=_hudspot_headers,
+            timeout=10
+        )
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        raise RuntimeError(f"hubspot_associate_objects failed: {e}") from e
+
+@mcp.tool()
+def hubspot_log_timeline_event(event_name: str, email: str, properties: dict) -> dict:
+    """Log Custom Behavioral Events to the Timeline.
+
+    Args:
+        event_name: The internal name of the Custom Timeline Event in HubSpot (e.g., 'pe31131920_user_signed_up')
+        email: The email of the contact to attach this event to
+        properties: Any metadata strings to include in the timeline event
+    """
+    body = {
+        "eventName": event_name,
+        "email": email,
+        "properties": properties,
+        "occurredAt": None  # Current time
+    }
+    
+    try:
+        if '_rate_limiter' in globals():
+            _rate_limiter.acquire()
+        response = requests.post(
+            "https://api.hubapi.com/events/v3/send",
+            headers=_hudspot_headers,
+            json=body,
+            timeout=10
+        )
+        response.raise_for_status()
+        # Events endpoint usually returns 204 No Content
+        return {"status": "success", "event_name": event_name, "contact": email}
+    except Exception as e:
+        raise RuntimeError(f"hubspot_log_timeline_event failed: {e}") from e
+{% endif %}

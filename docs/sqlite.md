@@ -93,7 +93,7 @@ mcp-maker init sqlite:///chinook.db
 ```
 
 ```
-⚒️ MCP-Maker                                         v0.2.2
+⚒️ MCP-Maker                                         v0.2.3
 
   ✅ Connected to sqlite source
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-maker"
-version = "0.2.2"
+version = "0.2.3"
 description = "Auto-generate MCP servers from any data source. Zero code required."
 readme = "README.md"
 license = "MIT"
@@ -47,7 +47,8 @@ async-sqlite = ["aiosqlite>=0.20.0"]
 async-postgres = ["asyncpg>=0.29.0"]
 async-mysql = ["aiomysql>=0.2.0"]
 otel = ["opentelemetry-api>=1.20.0", "opentelemetry-sdk>=1.20.0"]
-all = ["mcp-maker[postgres,mysql,airtable,gsheets,notion,semantic,excel,mongodb,supabase,openapi,redis,async-sqlite,async-postgres,async-mysql,otel]"]
+hubspot = ["requests>=2.31.0"]
+all = ["mcp-maker[postgres,mysql,airtable,gsheets,notion,semantic,excel,mongodb,supabase,openapi,redis,async-sqlite,async-postgres,async-mysql,otel,hubspot]"]
 dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "pytest-cov>=5.0.0", "ruff>=0.4.0"]
 
 [project.scripts]

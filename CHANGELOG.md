@@ -4,6 +4,14 @@ All notable changes to MCP-Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.3] - 2026-02-23
+
+### Added
+- **HubSpot Data-Bridge**: Natively connects to HubSpot CRM using Private App Tokens (`hubspot://pat=YOUR_TOKEN`).
+- **Deep Auto-Discovery**: Automatically traverses and introspects all Custom Properties for Contacts, Companies, Deals, Tickets, Products, Quotes, Notes, Tasks, Meetings, Emails, Calls, and any defined Custom Objects natively.
+- **Context Maximization**: Advanced Jinja generation intelligently maps human names (`hubspot_get_owners`), sales stages (`hubspot_get_deal_pipelines`), and audience segments (`hubspot_get_lists`).
+- **Compound Tools**: Advanced tools like `hubspot_search_crm_objects` and `batch_upsert_{table}` created for efficient data-syncing natively.
+
 ## [0.2.2] - 2026-02-23
 
 ### Added

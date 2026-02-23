@@ -73,7 +73,7 @@ mcp-maker init ./my-data/
 ```
 
 ```
-⚒️ MCP-Maker                                         v0.2.2
+⚒️ MCP-Maker                                         v0.2.3
 
   ✅ Connected to files source
 

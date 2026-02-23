@@ -79,7 +79,7 @@ import redis as _redis_lib
 from urllib.parse import urlparse as _urlparse
 {% endif %}
 
-{% if rate_limit > 0 or source_type in ["airtable", "notion", "gsheets"] %}
+{% if rate_limit > 0 or source_type in ["airtable", "notion", "gsheets", "hubspot"] %}
 import time
 import threading
 
@@ -107,7 +107,7 @@ class TokenBucketRateLimiter:
             # Sleep OUTSIDE the lock so other threads aren't blocked
             time.sleep(0.1)
 
-{% if source_type in ["airtable", "notion", "gsheets"] %}
+{% if source_type in ["airtable", "notion", "gsheets", "hubspot"] %}
 # Default to 4 requests per second to stay safely under 5 req/s limits
 _rate_limiter = TokenBucketRateLimiter(target_rps=4.0, burst_size=1)
 {% endif %}
@@ -429,6 +429,8 @@ def cache_stats() -> dict:
 {% include "partials/openapi.jinja2" %}
 {% elif source_type == "redis" %}
 {% include "partials/redis.jinja2" %}
+{% elif source_type == "hubspot" %}
+{% include "partials/hubspot.jinja2" %}
 {% endif %}
 
 {% if semantic %}

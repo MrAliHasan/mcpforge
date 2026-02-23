@@ -128,7 +128,7 @@ mcp-maker init sqlite:///demo.db
 Output:
 
 ```
-⚒️ MCP-Maker                                         v0.2.2
+⚒️ MCP-Maker                                         v0.2.3
 
   ✅ Connected to sqlite source
 
@@ -328,7 +328,7 @@ mcp-maker init postgres://user:pass@host/db --tables users,orders,products
 Output:
 
 ```
-⚒️ MCP-Maker                                         v0.2.2
+⚒️ MCP-Maker                                         v0.2.3
 
   ✅ Connected to postgres source
   📋 Filtered: keeping 3 of 50 tables (47 skipped)
@@ -377,7 +377,7 @@ mcp-maker env set GOOGLE_SERVICE_ACCOUNT_FILE ./credentials.json
 Output:
 
 ```
-🔐 Environment Manager                               v0.2.2
+🔐 Environment Manager                               v0.2.3
 
   ✅ Set: AIRTABLE_API_KEY = pat_xx...xxxx
   📁 Saved to: .env

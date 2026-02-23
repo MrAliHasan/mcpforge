@@ -35,6 +35,11 @@ try:
 except ImportError:
     NotionConnector = None  # type: ignore
 
+try:
+    from .hubspot import HubSpotConnector
+except ImportError:
+    HubSpotConnector = None  # type: ignore
+
 __all__ = ["BaseConnector", "SQLiteConnector", "FileConnector"]
 
 if PostgresConnector is not None:
@@ -47,3 +52,5 @@ if GoogleSheetsConnector is not None:
     __all__.append("GoogleSheetsConnector")
 if NotionConnector is not None:
     __all__.append("NotionConnector")
+if HubSpotConnector is not None:
+    __all__.append("HubSpotConnector")
