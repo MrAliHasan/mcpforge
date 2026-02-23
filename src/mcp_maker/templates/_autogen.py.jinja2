@@ -174,10 +174,11 @@ import time as _cache_time
 import threading as _cache_threading
 
 class _SmartCache:
-    """Thread-safe TTL-based in-memory cache for read tools."""
+    """Thread-safe TTL-based in-memory cache with max-size eviction for read tools."""
 
-    def __init__(self, ttl: int = {{ cache_ttl }}):
+    def __init__(self, ttl: int = {{ cache_ttl }}, max_entries: int = 1000):
         self._ttl = ttl
+        self._max_entries = max_entries
         self._store: dict[str, tuple[float, object]] = {}
         self._lock = _cache_threading.Lock()
         self._hits = 0
@@ -196,6 +197,10 @@ class _SmartCache:
 
     def set(self, key: str, value):
         with self._lock:
+            # Evict oldest entries if at capacity
+            if len(self._store) >= self._max_entries and key not in self._store:
+                oldest_key = min(self._store, key=lambda k: self._store[k][0])
+                del self._store[oldest_key]
             self._store[key] = (_cache_time.time(), value)
 
     def clear(self):
@@ -208,6 +213,7 @@ class _SmartCache:
         with self._lock:
             return {
                 "entries": len(self._store),
+                "max_entries": self._max_entries,
                 "hits": self._hits,
                 "misses": self._misses,
                 "hit_rate": f"{self._hits / max(1, self._hits + self._misses) * 100:.1f}%",
@@ -357,7 +363,8 @@ def export_{{ table.name }}_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_{{ table.name }}(limit=limit)
+    result = list_{{ table.name }}(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -374,7 +381,8 @@ def export_{{ table.name }}_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_{{ table.name }}(limit=limit)
+    result = list_{{ table.name }}(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 {% endif %}
@@ -387,8 +395,30 @@ import threading as _wh_threading
 import urllib.request as _wh_urllib
 import uuid as _wh_uuid
 
+import ipaddress as _wh_ipaddress
+
 _webhooks: dict[str, dict] = {}
 _wh_lock = _wh_threading.Lock()
+
+def _validate_webhook_url(url: str) -> str:
+    """Validate webhook URL to prevent SSRF attacks."""
+    from urllib.parse import urlparse as _parse_url
+    parsed = _parse_url(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(f"Invalid URL scheme: {parsed.scheme}. Only http/https allowed.")
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("Invalid URL: no hostname")
+    # Block private/link-local IP ranges
+    try:
+        ip = _wh_ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError(f"Webhook URL must not point to private/internal addresses: {hostname}")
+    except ValueError as e:
+        if "private" in str(e) or "internal" in str(e):
+            raise
+        # hostname is a domain name, not an IP — that's fine
+    return url
 
 def _fire_webhooks(event: str, table: str, data: dict):
     """Send POST notifications to registered webhook URLs (non-blocking)."""
@@ -414,12 +444,13 @@ def webhook_register(url: str, events: list[str] | None = None) -> dict:
     """Register a webhook URL to receive notifications on data changes.
 
     Args:
-        url: The URL to send POST notifications to.
+        url: The URL to send POST notifications to (must be http/https, no private IPs).
         events: List of events to subscribe to: 'insert', 'update', 'delete' (default: all).
 
     Returns:
         The webhook registration with its ID.
     """
+    url = _validate_webhook_url(url)
     webhook_id = str(_wh_uuid.uuid4())[:8]
     if events is None:
         events = ["insert", "update", "delete"]

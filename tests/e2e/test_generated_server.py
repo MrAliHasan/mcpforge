@@ -62,6 +62,8 @@ async def test_generated_server_execution(sample_e2e_db, monkeypatch):
         assert os.path.exists(autogen_path)
 
         # 3. Dynamically import the generated server module
+        # Set DATABASE_URL so the generated server doesn't warn about hardcoded path
+        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{sample_e2e_db}")
         sys.path.insert(0, tmpdir)
         try:
             spec = importlib.util.spec_from_file_location("_autogen_mcp_server_e2e", autogen_path)

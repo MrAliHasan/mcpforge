@@ -37,8 +37,13 @@ def _env_read(env_file: str) -> dict[str, str]:
                 continue
             if "=" in line:
                 k, _, v = line.partition("=")
-                # Strip quotes
-                v = v.strip().strip("'").strip('"')
+                v = v.strip()
+                # Handle quoted values (single or double quotes)
+                if (v.startswith('"') and v.endswith('"')) or \
+                   (v.startswith("'") and v.endswith("'")):
+                    v = v[1:-1]
+                    # Unescape escaped quotes within the value
+                    v = v.replace('\\"', '"').replace("\\'", "'")
                 env_vars[k.strip()] = v
     return env_vars
 

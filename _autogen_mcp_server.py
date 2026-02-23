@@ -35,7 +35,7 @@ elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
     import warnings
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp_0y4x1es.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpkbdtxrhk.db"
     warnings.warn(
         f"DATABASE_URL not set. Using hardcoded path: {DB_PATH}. "
         "Set DATABASE_URL environment variable for production use.",
@@ -154,7 +154,8 @@ def export_table_0_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_0(limit=limit)
+    result = list_table_0(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -171,7 +172,8 @@ def export_table_0_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_0(limit=limit)
+    result = list_table_0(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -181,7 +183,8 @@ def export_table_1_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_1(limit=limit)
+    result = list_table_1(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -198,7 +201,8 @@ def export_table_1_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_1(limit=limit)
+    result = list_table_1(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -208,7 +212,8 @@ def export_table_10_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_10(limit=limit)
+    result = list_table_10(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -225,7 +230,8 @@ def export_table_10_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_10(limit=limit)
+    result = list_table_10(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -235,7 +241,8 @@ def export_table_11_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_11(limit=limit)
+    result = list_table_11(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -252,7 +259,8 @@ def export_table_11_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_11(limit=limit)
+    result = list_table_11(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -262,7 +270,8 @@ def export_table_12_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_12(limit=limit)
+    result = list_table_12(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -279,7 +288,8 @@ def export_table_12_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_12(limit=limit)
+    result = list_table_12(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -289,7 +299,8 @@ def export_table_13_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_13(limit=limit)
+    result = list_table_13(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -306,7 +317,8 @@ def export_table_13_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_13(limit=limit)
+    result = list_table_13(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -316,7 +328,8 @@ def export_table_14_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_14(limit=limit)
+    result = list_table_14(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -333,7 +346,8 @@ def export_table_14_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_14(limit=limit)
+    result = list_table_14(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -343,7 +357,8 @@ def export_table_15_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_15(limit=limit)
+    result = list_table_15(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -360,7 +375,8 @@ def export_table_15_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_15(limit=limit)
+    result = list_table_15(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -370,7 +386,8 @@ def export_table_16_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_16(limit=limit)
+    result = list_table_16(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -387,7 +404,8 @@ def export_table_16_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_16(limit=limit)
+    result = list_table_16(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -397,7 +415,8 @@ def export_table_17_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_17(limit=limit)
+    result = list_table_17(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -414,7 +433,8 @@ def export_table_17_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_17(limit=limit)
+    result = list_table_17(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -424,7 +444,8 @@ def export_table_18_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_18(limit=limit)
+    result = list_table_18(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -441,7 +462,8 @@ def export_table_18_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_18(limit=limit)
+    result = list_table_18(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -451,7 +473,8 @@ def export_table_19_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_19(limit=limit)
+    result = list_table_19(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -468,7 +491,8 @@ def export_table_19_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_19(limit=limit)
+    result = list_table_19(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -478,7 +502,8 @@ def export_table_2_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_2(limit=limit)
+    result = list_table_2(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -495,7 +520,8 @@ def export_table_2_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_2(limit=limit)
+    result = list_table_2(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -505,7 +531,8 @@ def export_table_20_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_20(limit=limit)
+    result = list_table_20(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -522,7 +549,8 @@ def export_table_20_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_20(limit=limit)
+    result = list_table_20(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -532,7 +560,8 @@ def export_table_21_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_21(limit=limit)
+    result = list_table_21(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -549,7 +578,8 @@ def export_table_21_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_21(limit=limit)
+    result = list_table_21(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -559,7 +589,8 @@ def export_table_22_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_22(limit=limit)
+    result = list_table_22(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -576,7 +607,8 @@ def export_table_22_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_22(limit=limit)
+    result = list_table_22(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -586,7 +618,8 @@ def export_table_23_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_23(limit=limit)
+    result = list_table_23(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -603,7 +636,8 @@ def export_table_23_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_23(limit=limit)
+    result = list_table_23(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -613,7 +647,8 @@ def export_table_24_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_24(limit=limit)
+    result = list_table_24(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -630,7 +665,8 @@ def export_table_24_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_24(limit=limit)
+    result = list_table_24(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -640,7 +676,8 @@ def export_table_3_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_3(limit=limit)
+    result = list_table_3(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -657,7 +694,8 @@ def export_table_3_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_3(limit=limit)
+    result = list_table_3(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -667,7 +705,8 @@ def export_table_4_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_4(limit=limit)
+    result = list_table_4(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -684,7 +723,8 @@ def export_table_4_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_4(limit=limit)
+    result = list_table_4(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -694,7 +734,8 @@ def export_table_5_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_5(limit=limit)
+    result = list_table_5(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -711,7 +752,8 @@ def export_table_5_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_5(limit=limit)
+    result = list_table_5(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -721,7 +763,8 @@ def export_table_6_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_6(limit=limit)
+    result = list_table_6(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -738,7 +781,8 @@ def export_table_6_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_6(limit=limit)
+    result = list_table_6(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -748,7 +792,8 @@ def export_table_7_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_7(limit=limit)
+    result = list_table_7(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -765,7 +810,8 @@ def export_table_7_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_7(limit=limit)
+    result = list_table_7(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -775,7 +821,8 @@ def export_table_8_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_8(limit=limit)
+    result = list_table_8(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -792,7 +839,8 @@ def export_table_8_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_8(limit=limit)
+    result = list_table_8(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 @mcp.tool()
@@ -802,7 +850,8 @@ def export_table_9_csv(limit: int = 1000) -> str:
     Args:
         limit: Maximum rows to export (default: 1000).
     """
-    rows = list_table_9(limit=limit)
+    result = list_table_9(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     if not rows:
         return ""
     output = _io.StringIO()
@@ -819,7 +868,8 @@ def export_table_9_json(limit: int = 1000, indent: int = 2) -> str:
         limit: Maximum rows to export (default: 1000).
         indent: JSON indentation (0 for compact).
     """
-    rows = list_table_9(limit=limit)
+    result = list_table_9(limit=limit)
+    rows = result["results"] if isinstance(result, dict) else result
     return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
 
 

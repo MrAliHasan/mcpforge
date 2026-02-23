@@ -9,7 +9,13 @@ if DB_PATH and DB_PATH.startswith("sqlite:///"):
 elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
+    import warnings
     DB_PATH = "{{ schema.metadata.get('db_path', source_uri) }}"
+    warnings.warn(
+        f"DATABASE_URL not set. Using hardcoded path: {DB_PATH}. "
+        "Set DATABASE_URL environment variable for production use.",
+        stacklevel=1,
+    )
 
 {% if consolidate %}
 # ─── Consolidated Tools (Large Schema Mode) ───

@@ -94,6 +94,11 @@ def list_connectors():
         "airtable": ("AirtableConnector", "airtable" in _CONNECTOR_REGISTRY),
         "gsheet": ("GoogleSheetsConnector", "gsheet" in _CONNECTOR_REGISTRY),
         "notion": ("NotionConnector", "notion" in _CONNECTOR_REGISTRY),
+        "excel": ("ExcelConnector", "excel" in _CONNECTOR_REGISTRY),
+        "mongodb": ("MongoDBConnector", "mongodb" in _CONNECTOR_REGISTRY),
+        "supabase": ("SupabaseConnector", "supabase" in _CONNECTOR_REGISTRY),
+        "openapi": ("OpenAPIConnector", "openapi" in _CONNECTOR_REGISTRY),
+        "redis": ("RedisConnector", "redis" in _CONNECTOR_REGISTRY),
     }
 
     for scheme, (cls_name, available) in all_connectors.items():
