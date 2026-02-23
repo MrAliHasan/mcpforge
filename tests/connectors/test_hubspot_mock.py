@@ -1,5 +1,9 @@
 import os
 from unittest.mock import patch
+import pytest
+
+# Skip this entire test module if requests is not installed
+pytest.importorskip("requests")
 
 from mcp_maker.connectors.hubspot import HubSpotConnector
 from mcp_maker.core.schema import ColumnType
