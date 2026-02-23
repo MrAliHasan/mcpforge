@@ -67,8 +67,8 @@ class SQLiteConnector(BaseConnector):
         table_names = [row["name"] for row in cursor.fetchall()]
 
         for table_name in table_names:
-            # Get column info
-            col_cursor = conn.execute(f"PRAGMA table_info('{table_name}')")
+            # Get column info (table_name is from sqlite_master, safe to use)
+            col_cursor = conn.execute(f'PRAGMA table_info("{table_name}")')
             columns = []
             for col in col_cursor.fetchall():
                 columns.append(Column(
@@ -81,7 +81,7 @@ class SQLiteConnector(BaseConnector):
             # Get row count
             try:
                 count_cursor = conn.execute(
-                    f"SELECT COUNT(*) as cnt FROM '{table_name}'"
+                    f'SELECT COUNT(*) as cnt FROM "{table_name}"'
                 )
                 row_count = count_cursor.fetchone()["cnt"]
             except sqlite3.Error:
@@ -97,7 +97,7 @@ class SQLiteConnector(BaseConnector):
         foreign_keys = []
         for table_name in table_names:
             try:
-                fk_cursor = conn.execute(f"PRAGMA foreign_key_list('{table_name}')")
+                fk_cursor = conn.execute(f'PRAGMA foreign_key_list("{table_name}")')
                 for fk in fk_cursor.fetchall():
                     foreign_keys.append(ForeignKey(
                         from_table=table_name,

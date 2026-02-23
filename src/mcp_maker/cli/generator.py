@@ -261,6 +261,14 @@ def init(
         for st in source_types:
             console.print(f"    • {st}: {sum(1 for s in schemas if s.source_type == st)} source(s)")
 
+        # Warn if mixing different connector types — only the primary template is used
+        unique_types = set(source_types)
+        if len(unique_types) > 1:
+            console.print()
+            console.print(f"  ⚠️  [yellow]Mixed source types detected:[/yellow] {', '.join(sorted(unique_types))}")
+            console.print(f"  [dim]Only the [cyan]{schemas[0].source_type}[/cyan] template will be used for code generation.[/dim]")
+            console.print("  [dim]Tables from other sources will be included but may need manual adjustments.[/dim]")
+
     # Filter tables if --tables specified
     if tables:
         wanted = {t.strip().lower() for t in tables.split(",") if t.strip()}
@@ -361,6 +369,15 @@ def init(
     with open(env_example_path, "w") as f:
         f.write("# Copy this file to .env and fill in the values\n")
         f.write("DATABASE_URL='your-connection-string-here'\n")
+
+    # Generate .gitignore for generated files (if not already present)
+    gitignore_path = os.path.join(output, ".gitignore")
+    if not os.path.exists(gitignore_path):
+        from pathlib import Path
+        template_gitignore = Path(__file__).parent.parent / "templates" / ".generated.gitignore"
+        if template_gitignore.exists():
+            import shutil
+            shutil.copy2(template_gitignore, gitignore_path)
 
     console.print()
     if server_created:

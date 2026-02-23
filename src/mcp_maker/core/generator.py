@@ -115,6 +115,7 @@ def format_and_verify_code(code: str, filename: str) -> str:
     except SyntaxError as e:
         console.print(f"\n[bold red]SyntaxError in generated code for {filename}:[/bold red] {e}")
         console.print("[dim]This may be caused by complex schemas. Please report this issue.[/dim]")
+        raise SystemExit(1) from e
     
     try:
         result = subprocess.run(

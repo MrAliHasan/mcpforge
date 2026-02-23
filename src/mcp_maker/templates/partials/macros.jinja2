@@ -91,9 +91,18 @@ def aggregate_{{ table.name }}(group_by: str, agg_function: str = "count", agg_c
         raise ValueError(f"Invalid agg_function: {agg_function}. Use: count, sum, avg, min, max")
     if agg_column != "*" and agg_column not in _valid_cols:
         raise ValueError(f"Invalid agg_column: {agg_column}. Available: {', '.join(sorted(_valid_cols))}")
-    q = quote_char
+    q = "{{ quote_char }}"
     agg_col_sql = "*" if agg_column == "*" else f'{q}{agg_column}{q}'
-    query = f'SELECT {q}{group_by}{q} as "group", {agg_function}({agg_col_sql}) as "value" FROM {q}{{ table.name }}{q} GROUP BY {q}{group_by}{q} ORDER BY "value" DESC LIMIT {min(limit, 100)}'
+    try:
+        conn = _get_connection()
+        cursor = conn.execute(
+            f'SELECT {q}{group_by}{q} as "group", {agg_function}({agg_col_sql}) as "value" '
+            f'FROM {q}{{ table.name }}{q} GROUP BY {q}{group_by}{q} ORDER BY "value" DESC LIMIT ?',
+            (min(limit, 100),),
+        )
+        return [dict(row) for row in cursor.fetchall()]
+    except Exception as e:
+        raise RuntimeError(f"aggregate_{{ table.name }} failed: {e}") from e
 {% endif %}
 {% endmacro %}
 

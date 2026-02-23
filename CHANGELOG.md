@@ -4,6 +4,25 @@ All notable changes to MCP-Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.2] - 2026-02-23
+
+### Added
+- **Pagination & Sorting**: All `list_` tools now return `{results, total, has_more, next_offset}` with `sort_field` and `sort_direction` params across every connector (SQL, NoSQL, Excel, Files, GSheets, Notion, Airtable, Supabase).
+- **Field Selection**: `list_` tools accept `fields="col1,col2"` for column projection with SQL injection-safe whitelisting.
+- **Date Range Filters**: Auto-detected date/datetime columns get `date_from` and `date_to` params on `list_` tools.
+- **Foreign Key Discovery & Join Tools**: Auto-discovers FK relationships in SQLite, PostgreSQL, and MySQL. Generates `join_{from}_{to}()` tools for cross-table queries.
+- **Batch Operations**: `batch_insert_{table}(records=[...])` and `batch_delete_{table}(ids=[...])` tools with transaction safety.
+- **Export Tools**: `export_{table}_csv()` and `export_{table}_json()` for every table across all connectors.
+- **Webhook Support**: Optional `--webhooks` flag generates `register_webhook_{table}()`, `list_webhooks_{table}()`, and `fire_webhooks_{table}()` tools.
+- **Redis Pub/Sub**: `publish_message(channel, message)`, `channel_list(pattern)`, and `channel_subscribers(channel)` tools.
+- **Multi-Source Initialization**: `mcp-maker init source1 source2 ...` merges schemas from multiple data sources into a single unified MCP server.
+- **Async Templates**: `--async` flag generates `aiosqlite`-based async handlers for SQLite connectors.
+
+### Changed
+- **Connector Documentation**: All 11 connector docs updated with Advanced Features sections covering pagination, fields, date filters, batch, export, and join tools.
+- **Test Coverage**: Boosted from 43% to 73% (244 tests) with comprehensive mock-based tests for Excel, MongoDB, Redis, Supabase, OpenAPI, MySQL, PostgreSQL, GSheets, Notion, Airtable connectors and CLI deploy/server/environment commands.
+- **Lint Clean**: Resolved all 402 ruff lint errors (F401, F811, F841, E402).
+
 ## [0.2.1] - 2026-02-23
 
 ### Added
