@@ -34,7 +34,7 @@ if DB_PATH and DB_PATH.startswith("sqlite:///"):
 elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp4vreyng9.db"
+    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmpckbiwwqt.db"
 
 _local = threading.local()
 
@@ -104,6 +104,7 @@ def query_database(table_name: str, filters: dict | None = None, limit: int = 50
 
 
 
+
 # ─── Health Check ───
 
 @mcp.tool()
@@ -133,3 +134,686 @@ def _cleanup():
             pass
 
 atexit.register(_cleanup)
+
+# ─── Export Tools ───
+
+import csv as _csv
+import io as _io
+import json as _json
+
+@mcp.tool()
+def export_table_0_csv(limit: int = 1000) -> str:
+    """Export 'table_0' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_0(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_0_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_0' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_0(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_1_csv(limit: int = 1000) -> str:
+    """Export 'table_1' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_1(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_1_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_1' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_1(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_10_csv(limit: int = 1000) -> str:
+    """Export 'table_10' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_10(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_10_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_10' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_10(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_11_csv(limit: int = 1000) -> str:
+    """Export 'table_11' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_11(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_11_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_11' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_11(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_12_csv(limit: int = 1000) -> str:
+    """Export 'table_12' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_12(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_12_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_12' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_12(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_13_csv(limit: int = 1000) -> str:
+    """Export 'table_13' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_13(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_13_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_13' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_13(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_14_csv(limit: int = 1000) -> str:
+    """Export 'table_14' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_14(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_14_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_14' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_14(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_15_csv(limit: int = 1000) -> str:
+    """Export 'table_15' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_15(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_15_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_15' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_15(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_16_csv(limit: int = 1000) -> str:
+    """Export 'table_16' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_16(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_16_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_16' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_16(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_17_csv(limit: int = 1000) -> str:
+    """Export 'table_17' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_17(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_17_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_17' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_17(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_18_csv(limit: int = 1000) -> str:
+    """Export 'table_18' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_18(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_18_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_18' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_18(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_19_csv(limit: int = 1000) -> str:
+    """Export 'table_19' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_19(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_19_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_19' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_19(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_2_csv(limit: int = 1000) -> str:
+    """Export 'table_2' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_2(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_2_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_2' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_2(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_20_csv(limit: int = 1000) -> str:
+    """Export 'table_20' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_20(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_20_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_20' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_20(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_21_csv(limit: int = 1000) -> str:
+    """Export 'table_21' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_21(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_21_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_21' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_21(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_22_csv(limit: int = 1000) -> str:
+    """Export 'table_22' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_22(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_22_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_22' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_22(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_23_csv(limit: int = 1000) -> str:
+    """Export 'table_23' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_23(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_23_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_23' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_23(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_24_csv(limit: int = 1000) -> str:
+    """Export 'table_24' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_24(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_24_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_24' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_24(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_3_csv(limit: int = 1000) -> str:
+    """Export 'table_3' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_3(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_3_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_3' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_3(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_4_csv(limit: int = 1000) -> str:
+    """Export 'table_4' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_4(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_4_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_4' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_4(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_5_csv(limit: int = 1000) -> str:
+    """Export 'table_5' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_5(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_5_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_5' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_5(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_6_csv(limit: int = 1000) -> str:
+    """Export 'table_6' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_6(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_6_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_6' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_6(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_7_csv(limit: int = 1000) -> str:
+    """Export 'table_7' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_7(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_7_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_7' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_7(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_8_csv(limit: int = 1000) -> str:
+    """Export 'table_8' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_8(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_8_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_8' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_8(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+@mcp.tool()
+def export_table_9_csv(limit: int = 1000) -> str:
+    """Export 'table_9' data as CSV string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+    """
+    rows = list_table_9(limit=limit)
+    if not rows:
+        return ""
+    output = _io.StringIO()
+    writer = _csv.DictWriter(output, fieldnames=rows[0].keys())
+    writer.writeheader()
+    writer.writerows(rows)
+    return output.getvalue()
+
+@mcp.tool()
+def export_table_9_json(limit: int = 1000, indent: int = 2) -> str:
+    """Export 'table_9' data as formatted JSON string.
+
+    Args:
+        limit: Maximum rows to export (default: 1000).
+        indent: JSON indentation (0 for compact).
+    """
+    rows = list_table_9(limit=limit)
+    return _json.dumps(rows, indent=indent if indent > 0 else None, default=str)
+
+

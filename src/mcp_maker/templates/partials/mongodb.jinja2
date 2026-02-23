@@ -22,56 +22,143 @@ _db = _client[_db_name]
 
 {% if 'read' in ops %}
 @mcp.tool()
-def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List documents from the '{{ table.name }}' collection.
 
     Args:
         limit: Maximum documents to return (default: {{ default_limit }}, max: {{ max_limit }}).
         offset: Number of documents to skip for pagination.
+        sort_field: Field name to sort by.
+        sort_direction: 'asc' or 'desc' (default: 'asc').
+        fields: Comma-separated field names to return (default: all).
+
+    Returns:
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
     """
-    limit = min(limit, {{ max_limit }})
-    cursor = _db["{{ table.name }}"].find().skip(offset).limit(limit)
-    results = []
-    for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
-    return results
+    try:
+        limit = min(limit, {{ max_limit }})
+        total = _db["{{ table.name }}"].count_documents({})
+        projection = None
+        if fields:
+            projection = {f.strip(): 1 for f in fields.split(",") if f.strip()}
+            projection["_id"] = 1
+        cursor = _db["{{ table.name }}"].find({}, projection).skip(offset).limit(limit)
+        if sort_field:
+            direction = -1 if sort_direction.lower() == "desc" else 1
+            cursor = cursor.sort(sort_field, direction)
+        results = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(doc)
+        return {
+            "results": results,
+            "total": total,
+            "has_more": (offset + limit) < total,
+            "next_offset": offset + limit if (offset + limit) < total else None,
+        }
+    except Exception as e:
+        raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
 
 @mcp.tool()
 def get_{{ table.name }}_by_id(id: str) -> dict | None:
     """Get a single document from '{{ table.name }}' by its _id."""
     try:
-        doc = _db["{{ table.name }}"].find_one({"_id": ObjectId(id)})
-    except Exception:
-        doc = _db["{{ table.name }}"].find_one({"_id": id})
-    if doc:
-        doc["_id"] = str(doc["_id"])
-    return doc
+        try:
+            doc = _db["{{ table.name }}"].find_one({"_id": ObjectId(id)})
+        except Exception:
+            doc = _db["{{ table.name }}"].find_one({"_id": id})
+        if doc:
+            doc["_id"] = str(doc["_id"])
+        return doc
+    except Exception as e:
+        raise RuntimeError(f"get_{{ table.name }}_by_id failed: {e}") from e
 
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.name }}' collection using text matching on string fields."""
-    limit = min(limit, {{ max_limit }})
-    # Build $or query across string fields
-    conditions = []
-    {% for col in table.columns %}
-    {% if col.type.value == 'string' and col.name != '_id' %}
-    conditions.append({"{{ col.name }}": {"$regex": query, "$options": "i"}})
-    {% endif %}
-    {% endfor %}
-    if not conditions:
-        return []
-    cursor = _db["{{ table.name }}"].find({"$or": conditions}).limit(limit)
-    results = []
-    for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
-    return results
+    try:
+        limit = min(limit, {{ max_limit }})
+        conditions = []
+        {% for col in table.columns %}
+        {% if col.type.value == 'string' and col.name != '_id' %}
+        conditions.append({"{{ col.name }}": {"$regex": query, "$options": "i"}})
+        {% endif %}
+        {% endfor %}
+        if not conditions:
+            return []
+        cursor = _db["{{ table.name }}"].find({"$or": conditions}).limit(limit)
+        results = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(doc)
+        return results
+    except Exception as e:
+        raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
+
+@mcp.tool()
+def filter_{{ table.name }}(field: str, value: str, operator: str = "eq", limit: int = {{ default_limit }}) -> list[dict]:
+    """Filter documents in '{{ table.name }}' using MongoDB query operators.
+
+    Args:
+        field: Field name to filter on.
+        value: Value to filter by.
+        operator: 'eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'regex' (default: 'eq').
+        limit: Maximum results.
+    """
+    try:
+        limit = min(limit, {{ max_limit }})
+        op_map = {"eq": "$eq", "ne": "$ne", "gt": "$gt", "gte": "$gte", "lt": "$lt", "lte": "$lte", "regex": "$regex"}
+        mongo_op = op_map.get(operator, "$eq")
+        if mongo_op == "$regex":
+            query = {field: {"$regex": value, "$options": "i"}}
+        else:
+            query = {field: {mongo_op: value}}
+        cursor = _db["{{ table.name }}"].find(query).limit(limit)
+        results = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            results.append(doc)
+        return results
+    except Exception as e:
+        raise RuntimeError(f"filter_{{ table.name }} failed: {e}") from e
+
+@mcp.tool()
+def aggregate_{{ table.name }}(group_by: str, agg_function: str = "count", agg_field: str | None = None, limit: int = 20) -> list[dict]:
+    """Aggregate data in '{{ table.name }}' using MongoDB aggregation pipeline.
+
+    Args:
+        group_by: Field to group by.
+        agg_function: 'count', 'sum', 'avg', 'min', or 'max'.
+        agg_field: Field to aggregate (required for sum/avg/min/max).
+        limit: Maximum groups to return.
+    """
+    try:
+        agg_function = agg_function.lower()
+        if agg_function == "count":
+            agg_expr = {"$sum": 1}
+        elif agg_function in ("sum", "avg", "min", "max"):
+            if not agg_field:
+                raise ValueError(f"agg_field is required for {agg_function}")
+            agg_expr = {f"${agg_function}": f"${agg_field}"}
+        else:
+            raise ValueError(f"Invalid agg_function: {agg_function}. Use: count, sum, avg, min, max")
+        pipeline = [
+            {"$group": {"_id": f"${group_by}", "value": agg_expr}},
+            {"$sort": {"value": -1}},
+            {"$limit": min(limit, 100)},
+            {"$project": {"group": "$_id", "value": 1, "_id": 0}},
+        ]
+        return list(_db["{{ table.name }}"].aggregate(pipeline))
+    except Exception as e:
+        raise RuntimeError(f"aggregate_{{ table.name }} failed: {e}") from e
 
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the estimated number of documents in '{{ table.name }}'."""
-    return _db["{{ table.name }}"].estimated_document_count()
+    try:
+        return _db["{{ table.name }}"].estimated_document_count()
+    except Exception as e:
+        raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
 
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
@@ -87,22 +174,28 @@ def schema_{{ table.name }}() -> dict:
 @mcp.tool()
 def insert_{{ table.name }}(data: dict) -> dict:
     """Insert a new document into '{{ table.name }}'."""
-    data.pop("_id", None)  # Let MongoDB generate _id
-    result = _db["{{ table.name }}"].insert_one(data)
-    return {"inserted_id": str(result.inserted_id)}
+    try:
+        data.pop("_id", None)
+        result = _db["{{ table.name }}"].insert_one(data)
+        return {"inserted_id": str(result.inserted_id)}
+    except Exception as e:
+        raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
 {% endif %}
 
 {% if 'update' in ops %}
 @mcp.tool()
 def update_{{ table.name }}_by_id(id: str, data: dict) -> dict:
     """Update a document in '{{ table.name }}' by its _id."""
-    data.pop("_id", None)
     try:
-        oid = ObjectId(id)
-    except Exception:
-        oid = id
-    result = _db["{{ table.name }}"].update_one({"_id": oid}, {"$set": data})
-    return {"matched": result.matched_count, "modified": result.modified_count}
+        data.pop("_id", None)
+        try:
+            oid = ObjectId(id)
+        except Exception:
+            oid = id
+        result = _db["{{ table.name }}"].update_one({"_id": oid}, {"$set": data})
+        return {"matched": result.matched_count, "modified": result.modified_count}
+    except Exception as e:
+        raise RuntimeError(f"update_{{ table.name }}_by_id failed: {e}") from e
 {% endif %}
 
 {% if 'delete' in ops %}
@@ -110,11 +203,52 @@ def update_{{ table.name }}_by_id(id: str, data: dict) -> dict:
 def delete_{{ table.name }}_by_id(id: str) -> dict:
     """Delete a document from '{{ table.name }}' by its _id."""
     try:
-        oid = ObjectId(id)
-    except Exception:
-        oid = id
-    result = _db["{{ table.name }}"].delete_one({"_id": oid})
-    return {"deleted": result.deleted_count}
+        try:
+            oid = ObjectId(id)
+        except Exception:
+            oid = id
+        result = _db["{{ table.name }}"].delete_one({"_id": oid})
+        return {"deleted": result.deleted_count}
+    except Exception as e:
+        raise RuntimeError(f"delete_{{ table.name }}_by_id failed: {e}") from e
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
+    """Insert multiple documents into '{{ table.name }}'.
+
+    Args:
+        records: List of dictionaries, each representing a document.
+    """
+    try:
+        for r in records:
+            r.pop("_id", None)
+        result = _db["{{ table.name }}"].insert_many(records)
+        return {"inserted": len(result.inserted_ids)}
+    except Exception as e:
+        raise RuntimeError(f"batch_insert_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def batch_delete_{{ table.name }}(ids: list[str]) -> dict:
+    """Delete multiple documents from '{{ table.name }}' by their _id values.
+
+    Args:
+        ids: List of _id strings to delete.
+    """
+    try:
+        oids = []
+        for id_val in ids:
+            try:
+                oids.append(ObjectId(id_val))
+            except Exception:
+                oids.append(id_val)
+        result = _db["{{ table.name }}"].delete_many({"_id": {"$in": oids}})
+        return {"deleted": result.deleted_count}
+    except Exception as e:
+        raise RuntimeError(f"batch_delete_{{ table.name }} failed: {e}") from e
 {% endif %}
 
 {% endfor %}

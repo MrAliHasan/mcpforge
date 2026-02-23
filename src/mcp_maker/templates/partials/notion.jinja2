@@ -108,22 +108,32 @@ def _normalize_{{ table.name }}(page: dict) -> dict:
 
 {% if 'read' in ops %}
 @mcp.tool()
-def list_{{ table.name }}(limit: int = {{ default_limit }}, start_cursor: str | None = None) -> dict:
+def list_{{ table.name }}(limit: int = {{ default_limit }}, start_cursor: str | None = None, sort_property: str | None = None, sort_direction: str = "ascending", fields: str | None = None) -> dict:
     """List pages from the '{{ table.description }}' Notion database.
 
     Args:
         limit: Maximum pages (default: {{ default_limit }}, max: {{ max_limit }}).
         start_cursor: Pagination cursor from previous results.
+        sort_property: Property name to sort by.
+        sort_direction: 'ascending' or 'descending' (default: 'ascending').
+        fields: Comma-separated property names to return (default: all).
 
     Returns:
-        Dict with 'results' (list of pages) and 'next_cursor' for pagination.
+        Dict with 'results' (list of pages), 'has_more', and 'next_cursor' for pagination.
     """
     limit = min(limit, {{ max_limit }})
     kwargs = {"database_id": DATABASE_IDS["{{ table.name }}"], "page_size": limit}
     if start_cursor:
         kwargs["start_cursor"] = start_cursor
+    if sort_property:
+        original_name = _{{ table.name }}_props.get(sort_property, sort_property)
+        direction = "descending" if sort_direction.lower() == "descending" else "ascending"
+        kwargs["sorts"] = [{"property": original_name, "direction": direction}]
     response = notion.databases.query(**kwargs)
     results = [_normalize_{{ table.name }}(p) for p in response.get("results", [])]
+    if fields:
+        selected = [f.strip() for f in fields.split(",") if f.strip()]
+        results = [{k: r.get(k) for k in selected if k in r} for r in results]
     return {
         "results": results,
         "next_cursor": response.get("next_cursor"),
@@ -293,6 +303,49 @@ def create_{{ table.name }}({% for col in table.columns %}{{ col.name }}: str | 
         properties=properties,
     )
     return _normalize_{{ table.name }}(page)
+{% endif %}
+
+{% if 'update' in ops %}
+@mcp.tool()
+def update_{{ table.name }}(page_id: str, {% for col in table.columns %}{{ col.name }}: str | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict | None:
+    """Update an existing page in '{{ table.description }}'.
+
+    Args:
+        page_id: The Notion page ID to update.
+        {% for col in table.columns %}
+        {{ col.name }}: New value for '{{ col.description }}'.
+        {% endfor %}
+    """
+    properties = {}
+    {% for col in table.columns %}
+    if {{ col.name }} is not None:
+        properties["{{ col.description }}"] = {"rich_text": [{"text": {"content": str({{ col.name }})}}]}
+    {% endfor %}
+    if not properties:
+        return None
+    try:
+        _rate_limiter.acquire()
+        page = notion.pages.update(page_id=page_id, properties=properties)
+        return _normalize_{{ table.name }}(page)
+    except Exception as e:
+        raise RuntimeError(f"update_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def archive_{{ table.name }}(page_id: str) -> dict:
+    """Archive (soft-delete) a page in '{{ table.description }}'.
+
+    Args:
+        page_id: The Notion page ID to archive.
+    """
+    try:
+        _rate_limiter.acquire()
+        notion.pages.update(page_id=page_id, archived=True)
+        return {"archived": True, "page_id": page_id}
+    except Exception as e:
+        raise RuntimeError(f"archive_{{ table.name }} failed: {e}") from e
+{% endif %}
 
 {% endif %}
 {% endfor %}

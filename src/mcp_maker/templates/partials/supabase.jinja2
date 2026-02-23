@@ -26,44 +26,97 @@ _supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 {% if 'read' in ops %}
 @mcp.tool()
-def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List rows from the '{{ table.name }}' table.
 
     Args:
         limit: Maximum rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
         offset: Number of rows to skip for pagination.
+        sort_field: Column name to sort by.
+        sort_direction: 'asc' or 'desc' (default: 'asc').
+        fields: Comma-separated column names to return (default: all).
+
+    Returns:
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
     """
-    limit = min(limit, {{ max_limit }})
-    result = _supabase.table("{{ table.name }}").select("*").range(offset, offset + limit - 1).execute()
-    return result.data
+    try:
+        limit = min(limit, {{ max_limit }})
+        select_cols = fields if fields else "*"
+        q = _supabase.table("{{ table.name }}").select(select_cols, count="exact").range(offset, offset + limit - 1)
+        if sort_field:
+            q = q.order(sort_field, desc=(sort_direction.lower() == "desc"))
+        result = q.execute()
+        total = result.count if result.count is not None else len(result.data)
+        return {
+            "results": result.data,
+            "total": total,
+            "has_more": (offset + limit) < total,
+            "next_offset": offset + limit if (offset + limit) < total else None,
+        }
+    except Exception as e:
+        raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
 
 {% if table.primary_key_columns %}
 {% set pk = table.primary_key_columns[0] %}
 @mcp.tool()
 def get_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict | None:
     """Get a single row from '{{ table.name }}' by its {{ pk.name }}."""
-    result = _supabase.table("{{ table.name }}").select("*").eq("{{ pk.name }}", {{ pk.name }}).limit(1).execute()
-    return result.data[0] if result.data else None
+    try:
+        result = _supabase.table("{{ table.name }}").select("*").eq("{{ pk.name }}", {{ pk.name }}).limit(1).execute()
+        return result.data[0] if result.data else None
+    except Exception as e:
+        raise RuntimeError(f"get_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
 {% endif %}
 
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.name }}' table using text matching (ILIKE)."""
-    limit = min(limit, {{ max_limit }})
-    q = _supabase.table("{{ table.name }}").select("*")
-    {% for col in table.searchable_columns %}
-    {% if col.type.value == 'string' %}
-    q = q.or_("{{ col.name }}.ilike.%{query}%".replace("{query}", query))
-    {% endif %}
-    {% endfor %}
-    result = q.limit(limit).execute()
-    return result.data
+    try:
+        limit = min(limit, {{ max_limit }})
+        q = _supabase.table("{{ table.name }}").select("*")
+        {% for col in table.searchable_columns %}
+        {% if col.type.value == 'string' %}
+        q = q.or_("{{ col.name }}.ilike.%{query}%".replace("{query}", query))
+        {% endif %}
+        {% endfor %}
+        result = q.limit(limit).execute()
+        return result.data
+    except Exception as e:
+        raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
+
+@mcp.tool()
+def filter_{{ table.name }}(field: str, value: str, operator: str = "eq", limit: int = {{ default_limit }}) -> list[dict]:
+    """Filter rows in '{{ table.name }}' using Supabase query operators.
+
+    Args:
+        field: Column name to filter on.
+        value: Value to compare.
+        operator: 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike' (default: 'eq').
+        limit: Maximum results.
+    """
+    try:
+        limit = min(limit, {{ max_limit }})
+        q = _supabase.table("{{ table.name }}").select("*")
+        op_map = {
+            "eq": q.eq, "neq": q.neq, "gt": q.gt, "gte": q.gte,
+            "lt": q.lt, "lte": q.lte, "like": q.like, "ilike": q.ilike,
+        }
+        if operator not in op_map:
+            raise ValueError(f"Invalid operator: {operator}. Use: {', '.join(op_map.keys())}")
+        q = op_map[operator](field, value)
+        result = q.limit(limit).execute()
+        return result.data
+    except Exception as e:
+        raise RuntimeError(f"filter_{{ table.name }} failed: {e}") from e
 
 @mcp.tool()
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in '{{ table.name }}'."""
-    result = _supabase.table("{{ table.name }}").select("*", count="exact").limit(0).execute()
-    return result.count or 0
+    try:
+        result = _supabase.table("{{ table.name }}").select("*", count="exact").limit(0).execute()
+        return result.count or 0
+    except Exception as e:
+        raise RuntimeError(f"count_{{ table.name }} failed: {e}") from e
 
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
@@ -79,8 +132,11 @@ def schema_{{ table.name }}() -> dict:
 @mcp.tool()
 def insert_{{ table.name }}(data: dict) -> dict:
     """Insert a new row into '{{ table.name }}'."""
-    result = _supabase.table("{{ table.name }}").insert(data).execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = _supabase.table("{{ table.name }}").insert(data).execute()
+        return result.data[0] if result.data else {}
+    except Exception as e:
+        raise RuntimeError(f"insert_{{ table.name }} failed: {e}") from e
 {% endif %}
 
 {% if 'update' in ops and table.primary_key_columns %}
@@ -88,8 +144,11 @@ def insert_{{ table.name }}(data: dict) -> dict:
 @mcp.tool()
 def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}, data: dict) -> dict:
     """Update a row in '{{ table.name }}' by its {{ pk.name }}."""
-    result = _supabase.table("{{ table.name }}").update(data).eq("{{ pk.name }}", {{ pk.name }}).execute()
-    return result.data[0] if result.data else {}
+    try:
+        result = _supabase.table("{{ table.name }}").update(data).eq("{{ pk.name }}", {{ pk.name }}).execute()
+        return result.data[0] if result.data else {}
+    except Exception as e:
+        raise RuntimeError(f"update_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
 {% endif %}
 
 {% if 'delete' in ops and table.primary_key_columns %}
@@ -97,8 +156,42 @@ def update_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.
 @mcp.tool()
 def delete_{{ table.name }}_by_{{ pk.name }}({{ pk.name }}: {{ 'int' if pk.type.value == 'integer' else 'str' }}) -> dict:
     """Delete a row from '{{ table.name }}' by its {{ pk.name }}."""
-    result = _supabase.table("{{ table.name }}").delete().eq("{{ pk.name }}", {{ pk.name }}).execute()
-    return {"deleted": len(result.data)}
+    try:
+        result = _supabase.table("{{ table.name }}").delete().eq("{{ pk.name }}", {{ pk.name }}).execute()
+        return {"deleted": len(result.data)}
+    except Exception as e:
+        raise RuntimeError(f"delete_{{ table.name }}_by_{{ pk.name }} failed: {e}") from e
+{% endif %}
+
+{% if 'insert' in ops %}
+@mcp.tool()
+def batch_insert_{{ table.name }}(records: list[dict]) -> dict:
+    """Insert multiple rows into '{{ table.name }}'.
+
+    Args:
+        records: List of dictionaries, each representing a row.
+    """
+    try:
+        result = _supabase.table("{{ table.name }}").insert(records).execute()
+        return {"inserted": len(result.data)}
+    except Exception as e:
+        raise RuntimeError(f"batch_insert_{{ table.name }} failed: {e}") from e
+{% endif %}
+
+{% if 'delete' in ops and table.primary_key_columns %}
+{% set pk = table.primary_key_columns[0] %}
+@mcp.tool()
+def batch_delete_{{ table.name }}(ids: list) -> dict:
+    """Delete multiple rows from '{{ table.name }}' by their {{ pk.name }} values.
+
+    Args:
+        ids: List of {{ pk.name }} values to delete.
+    """
+    try:
+        result = _supabase.table("{{ table.name }}").delete().in_("{{ pk.name }}", ids).execute()
+        return {"deleted": len(result.data)}
+    except Exception as e:
+        raise RuntimeError(f"batch_delete_{{ table.name }} failed: {e}") from e
 {% endif %}
 
 {% endfor %}
@@ -134,3 +227,19 @@ def supabase_storage_list_files(bucket: str, path: str = "") -> list[dict]:
         return [{"name": f["name"], "id": f.get("id", "")} for f in files]
     except Exception as e:
         raise RuntimeError(f"Failed to list files in bucket '{bucket}': {e}") from e
+
+# ─── Supabase RPC (Postgres Functions) ───
+
+@mcp.tool()
+def supabase_rpc(function_name: str, params: dict | None = None) -> dict:
+    """Call a Postgres function (RPC) in your Supabase project.
+
+    Args:
+        function_name: Name of the Postgres function to call.
+        params: Optional dictionary of parameters to pass.
+    """
+    try:
+        result = _supabase.rpc(function_name, params or {}).execute()
+        return {"data": result.data}
+    except Exception as e:
+        raise RuntimeError(f"RPC call '{function_name}' failed: {e}") from e

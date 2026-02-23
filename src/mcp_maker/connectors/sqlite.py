@@ -10,6 +10,7 @@ from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
+    ForeignKey,
     Table,
     map_sql_type,
 )
@@ -93,12 +94,28 @@ class SQLiteConnector(BaseConnector):
                 row_count=row_count,
             ))
 
+        # Discover foreign key relationships
+        foreign_keys = []
+        for table_name in table_names:
+            try:
+                fk_cursor = conn.execute(f"PRAGMA foreign_key_list('{table_name}')")
+                for fk in fk_cursor.fetchall():
+                    foreign_keys.append(ForeignKey(
+                        from_table=table_name,
+                        from_column=fk["from"],
+                        to_table=fk["table"],
+                        to_column=fk["to"],
+                    ))
+            except sqlite3.Error:
+                pass
+
         conn.close()
 
         return DataSourceSchema(
             source_type="sqlite",
             source_uri=self.uri,
             tables=tables,
+            foreign_keys=foreign_keys,
             metadata={
                 "db_path": db_path,
                 "file_size_bytes": os.path.getsize(db_path),

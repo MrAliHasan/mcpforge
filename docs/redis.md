@@ -81,7 +81,10 @@ add_leaderboard(key, member, score)          → Add with score (write mode)
 ### Always Generated
 
 ```
-redis_info()   → Server info, db size, keyspace stats
+redis_info()           → Server info, db size, keyspace stats
+publish_message(channel, message)  → Publish to a Pub/Sub channel
+channel_list(pattern)              → List active channels
+channel_subscribers(channel)       → Count subscribers on a channel
 ```
 
 ---

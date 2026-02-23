@@ -37,33 +37,74 @@ _wb.close()
 
 {% if 'read' in ops %}
 @mcp.tool()
-def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, sort_field: str | None = None, sort_direction: str = "asc", fields: str | None = None) -> dict:
     """List rows from the '{{ table.description }}' sheet.
 
     Args:
         limit: Maximum rows to return (default: {{ default_limit }}, max: {{ max_limit }}).
         offset: Number of rows to skip for pagination.
+        sort_field: Column name to sort by.
+        sort_direction: 'asc' or 'desc' (default: 'asc').
+        fields: Comma-separated column names to return (default: all).
+
+    Returns:
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
     """
-    limit = min(limit, {{ max_limit }})
-    data = _EXCEL_DATA.get("{{ table.name }}", [])
-    return data[offset:offset + limit]
+    try:
+        limit = min(limit, {{ max_limit }})
+        data = _EXCEL_DATA.get("{{ table.name }}", [])
+        total = len(data)
+        if sort_field:
+            data = sorted(data, key=lambda r: str(r.get(sort_field, "")), reverse=(sort_direction.lower() == "desc"))
+        rows = data[offset:offset + limit]
+        if fields:
+            selected = [f.strip() for f in fields.split(",") if f.strip()]
+            rows = [{k: r.get(k) for k in selected if k in r} for r in rows]
+        return {
+            "results": rows,
+            "total": total,
+            "has_more": (offset + limit) < total,
+            "next_offset": offset + limit if (offset + limit) < total else None,
+        }
+    except Exception as e:
+        raise RuntimeError(f"list_{{ table.name }} failed: {e}") from e
+
+@mcp.tool()
+def get_{{ table.name }}_by_row(row_number: int) -> dict | None:
+    """Get a single row from '{{ table.description }}' by its row number (0-indexed).
+
+    Args:
+        row_number: The row index (0 = first data row).
+    """
+    try:
+        data = _EXCEL_DATA.get("{{ table.name }}", [])
+        if 0 <= row_number < len(data):
+            result = dict(data[row_number])
+            result["_row_number"] = row_number
+            return result
+        return None
+    except Exception as e:
+        raise RuntimeError(f"get_{{ table.name }}_by_row failed: {e}") from e
 {% endif %}
 
 {% if table.searchable_columns and 'read' in ops %}
 @mcp.tool()
 def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> list[dict]:
     """Search the '{{ table.description }}' sheet by text matching."""
-    limit = min(limit, {{ max_limit }})
-    query_lower = query.lower()
-    results = []
-    for row in _EXCEL_DATA.get("{{ table.name }}", []):
-        for v in row.values():
-            if query_lower in str(v).lower():
-                results.append(row)
+    try:
+        limit = min(limit, {{ max_limit }})
+        query_lower = query.lower()
+        results = []
+        for row in _EXCEL_DATA.get("{{ table.name }}", []):
+            for v in row.values():
+                if query_lower in str(v).lower():
+                    results.append(row)
+                    break
+            if len(results) >= limit:
                 break
-        if len(results) >= limit:
-            break
-    return results
+        return results
+    except Exception as e:
+        raise RuntimeError(f"search_{{ table.name }} failed: {e}") from e
 {% endif %}
 
 {% if 'read' in ops %}
@@ -71,9 +112,7 @@ def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> lis
 def count_{{ table.name }}() -> int:
     """Get the total number of rows in the '{{ table.description }}' sheet."""
     return len(_EXCEL_DATA.get("{{ table.name }}", []))
-{% endif %}
 
-{% if 'read' in ops %}
 @mcp.tool()
 def schema_{{ table.name }}() -> dict:
     """Get the column names and types for the '{{ table.description }}' sheet."""

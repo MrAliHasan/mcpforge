@@ -61,3 +61,39 @@ def list_tables() -> list[str]:
 
 {# ─── Type Mapping Helper ─── #}
 {% macro python_type(col) %}{{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{% endmacro %}
+
+
+{# ─── Aggregate Tool (GROUP BY + aggregation functions) ─── #}
+{% macro aggregate_tool(table, ops, quote_char) %}
+{% if 'read' in ops %}
+@mcp.tool()
+def aggregate_{{ table.name }}(group_by: str, agg_function: str = "count", agg_column: str = "*", limit: int = 20) -> list[dict]:
+    """Aggregate data in '{{ table.name }}' using GROUP BY.
+
+    Args:
+        group_by: Column to group by (e.g. '{{ table.columns[0].name }}').
+        agg_function: Aggregation function — 'count', 'sum', 'avg', 'min', or 'max'.
+        agg_column: Column to aggregate (default: '*' for count).
+        limit: Maximum groups to return.
+
+    Returns:
+        List of dicts with 'group' and 'value' keys.
+
+    Example:
+        aggregate_{{ table.name }}(group_by="status", agg_function="count")
+        → [{"group": "active", "value": 120}, {"group": "inactive", "value": 30}]
+    """
+    _valid_cols = { {% for col in table.columns %}"{{ col.name }}", {% endfor %} }
+    if group_by not in _valid_cols:
+        raise ValueError(f"Invalid group_by column: {group_by}. Available: {', '.join(sorted(_valid_cols))}")
+    agg_function = agg_function.upper()
+    if agg_function not in ("COUNT", "SUM", "AVG", "MIN", "MAX"):
+        raise ValueError(f"Invalid agg_function: {agg_function}. Use: count, sum, avg, min, max")
+    if agg_column != "*" and agg_column not in _valid_cols:
+        raise ValueError(f"Invalid agg_column: {agg_column}. Available: {', '.join(sorted(_valid_cols))}")
+    q = quote_char
+    agg_col_sql = "*" if agg_column == "*" else f'{q}{agg_column}{q}'
+    query = f'SELECT {q}{group_by}{q} as "group", {agg_function}({agg_col_sql}) as "value" FROM {q}{{ table.name }}{q} GROUP BY {q}{group_by}{q} ORDER BY "value" DESC LIMIT {min(limit, 100)}'
+{% endif %}
+{% endmacro %}
+

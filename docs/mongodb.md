@@ -38,11 +38,20 @@ For each collection, MCP-Maker samples 100 documents to infer the schema, then g
 ### Read Tools
 
 ```
-list_users(limit=50, offset=0)        → Paginated listing
+list_users(limit=50, offset=0)        → {results, total, has_more, next_offset}
 get_users_by_id(id="64a...")           → Get by ObjectId (_id)
 search_users(query="alice")            → Regex search across text fields
 count_users()                          → Estimated document count
 schema_users()                         → Field names & inferred types
+export_users_csv()                     → Export as CSV string
+export_users_json()                    → Export as JSON string
+```
+
+### Advanced List Features
+
+```
+list_users(fields="name,email")        → Field projection (only return specified fields)
+list_users(sort_field="name", sort_direction="desc")  → Sorting
 ```
 
 ### Write Tools (with `--ops read,insert,update,delete`)
@@ -55,6 +64,8 @@ mcp-maker init mongodb://localhost:27017/mydb --ops read,insert,update,delete
 insert_users(data={...})                → Insert a document
 update_users_by_id(id="64a...", data={...}) → Update by _id
 delete_users_by_id(id="64a...")         → Delete by _id
+batch_insert_users(records=[{...}, {...}])  → Batch insert documents
+batch_delete_users(ids=["64a...", "64b..."])  → Batch delete by _id
 ```
 
 ---

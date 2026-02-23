@@ -38,10 +38,19 @@ Each sheet in your Excel file becomes a table. The **first row** is used as colu
 ### Read Tools (always generated)
 
 ```
-list_sheet1(limit=50, offset=0)     → Paginated listing
+list_sheet1(limit=50, offset=0)     → {results, total, has_more, next_offset}
 search_sheet1(query="alice")         → Text search across all text columns
 count_sheet1()                       → Total row count
 schema_sheet1()                      → Column names & inferred types
+export_sheet1_csv()                  → Export as CSV string
+export_sheet1_json()                 → Export as JSON string
+```
+
+### Advanced List Features
+
+```
+list_sheet1(fields="name,email")     → Column selection
+list_sheet1(sort_field="name", sort_direction="desc")  → Sorting
 ```
 
 ---

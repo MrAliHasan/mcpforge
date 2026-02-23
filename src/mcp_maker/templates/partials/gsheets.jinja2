@@ -58,18 +58,32 @@ def _normalize_{{ table.name }}(record: dict, row_index: int = 0) -> dict:
 
 {% if 'read' in ops %}
 @mcp.tool()
-def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0) -> list[dict]:
+def list_{{ table.name }}(limit: int = {{ default_limit }}, offset: int = 0, fields: str | None = None) -> dict:
     """List rows from the '{{ table.description }}' Google Sheet.
 
     Args:
         limit: Maximum rows (default: {{ default_limit }}, max: {{ max_limit }}).
         offset: Number of rows to skip.
+        fields: Comma-separated column names to return (default: all).
+
+    Returns:
+        Dict with 'results', 'total', 'has_more', 'next_offset'.
     """
     limit = min(limit, {{ max_limit }})
     ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
     records = ws.get_all_records()
     normalized = [_normalize_{{ table.name }}(r, i) for i, r in enumerate(records)]
-    return normalized[offset:offset + limit]
+    total = len(normalized)
+    rows = normalized[offset:offset + limit]
+    if fields:
+        selected = [f.strip() for f in fields.split(",") if f.strip()]
+        rows = [{k: r.get(k) for k in selected if k in r} for r in rows]
+    return {
+        "results": rows,
+        "total": total,
+        "has_more": (offset + limit) < total,
+        "next_offset": offset + limit if (offset + limit) < total else None,
+    }
 {% endif %}
 
 
@@ -101,9 +115,10 @@ def search_{{ table.name }}(query: str, limit: int = {{ default_limit }}) -> lis
 {% if 'read' in ops %}
 @mcp.tool()
 def count_{{ table.name }}() -> int:
-    """Get the total number of rows in '{{ table.description }}'."""
+    """Get the total number of data rows in '{{ table.description }}'."""
     ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
-    return len(ws.get_all_records())
+    # row_count includes header, subtract 1 for data rows only
+    return max(0, ws.row_count - 1)
 {% endif %}
 
 
@@ -173,6 +188,22 @@ def update_{{ table.name }}_cell(row_number: int, field: str, value: str) -> dic
         return {"error": f"Header '{original_name}' not found"}
     ws.update_cell(row_number, col_index, value)
     return {"updated": True, "row": row_number, "field": field, "value": value}
+{% endif %}
+
+{% if 'delete' in ops %}
+@mcp.tool()
+def delete_{{ table.name }}_row(row_number: int) -> dict:
+    """Delete a row from '{{ table.description }}'.
+
+    Args:
+        row_number: The row number to delete (from list results).
+    """
+    ws = spreadsheet.worksheet(SHEET_NAMES["{{ table.name }}"])
+    if row_number < 2:
+        return {"error": "Cannot delete header row (row 1)"}
+    _rate_limiter.acquire()
+    ws.delete_rows(row_number)
+    return {"deleted": True, "row": row_number}
 {% endif %}
 
 {% endif %}
