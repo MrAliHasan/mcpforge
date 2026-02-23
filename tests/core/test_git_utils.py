@@ -5,12 +5,12 @@ from mcp_maker.core.git_utils import is_git_repo, commit_schema_changes
 def test_is_git_repo_true():
     with patch("subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
-        assert is_git_repo(".") == True
+        assert is_git_repo(".")
 
 def test_is_git_repo_false():
     with patch("subprocess.run") as mock_run:
         mock_run.side_effect = subprocess.CalledProcessError(128, "git")
-        assert is_git_repo(".") == False
+        assert not is_git_repo(".")
 
 def test_commit_schema_changes_not_git():
     with patch("mcp_maker.core.git_utils.is_git_repo", return_value=False):
