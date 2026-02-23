@@ -4,7 +4,6 @@ MCP-Maker MongoDB Connector — Inspect MongoDB databases.
 Each collection becomes a table. Schema is inferred by sampling documents.
 """
 
-import os
 
 from .base import BaseConnector, register_connector
 from ..core.schema import (

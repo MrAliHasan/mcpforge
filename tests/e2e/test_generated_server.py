@@ -70,7 +70,7 @@ async def test_generated_server_execution(sample_e2e_db, monkeypatch):
 
             # Ensure the 'mcp' object is exported
             assert hasattr(module, "mcp")
-            mcp = getattr(module, "mcp")
+            getattr(module, "mcp")
             
             # The tools are fastmcp.utilities.types.Tool objects, we need to execute the function directly.
             # In FastMCP, tools are added via decorator, but we can call the underlying python function if we want.

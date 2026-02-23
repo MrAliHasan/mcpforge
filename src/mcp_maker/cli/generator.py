@@ -1,18 +1,14 @@
 
-import json
 import os
-import subprocess
-import sys
 
 import typer
-from rich.console import Console
 from rich.table import Table as RichTable
 from rich.panel import Panel
 
 from mcp_maker import __version__
 from mcp_maker.core.schema import DataSourceSchema
-from mcp_maker.connectors.base import get_connector, register_connector
-from mcp_maker.core.generator import generate_server_code, write_server, read_lock_file
+from mcp_maker.connectors.base import get_connector
+from mcp_maker.core.generator import write_server, read_lock_file
 from .main import app, console
 
 def _load_connectors():
@@ -204,9 +200,6 @@ def init(
         mcp-maker init sqlite:///users.db mongodb://localhost/orders
     """
     _load_connectors()
-    from mcp_maker.connectors.base import get_connector
-    from mcp_maker.core.generator import write_server
-    from mcp_maker.core.schema import ForeignKey
 
     console.print()
     console.print(
@@ -296,8 +289,8 @@ def init(
         estimated_tools = table_count * tools_per_table
         console.print()
         console.print(f"  ⚠️  [yellow]Large schema detected:[/yellow] {table_count} tables → ~{estimated_tools} tools")
-        console.print(f"  [dim]Tip: Use [cyan]--tables users,orders[/cyan] to only include what you need.[/dim]")
-        console.print(f"  [dim]Large tool counts may exceed LLM context windows.[/dim]")
+        console.print("  [dim]Tip: Use [cyan]--tables users,orders[/cyan] to only include what you need.[/dim]")
+        console.print("  [dim]Large tool counts may exceed LLM context windows.[/dim]")
 
     # Print schema summary
     _print_schema_summary(schema)
@@ -367,7 +360,7 @@ def init(
     env_example_path = os.path.join(output, ".env.example")
     with open(env_example_path, "w") as f:
         f.write("# Copy this file to .env and fill in the values\n")
-        f.write(f"DATABASE_URL='your-connection-string-here'\n")
+        f.write("DATABASE_URL='your-connection-string-here'\n")
 
     console.print()
     if server_created:
@@ -383,8 +376,8 @@ def init(
         console.print("  🧠 [magenta]Semantic search enabled[/magenta] (ChromaDB vector search)")
     console.print()
     console.print("  [dim]Next steps:[/dim]")
-    console.print(f"    [cyan]mcp-maker serve[/cyan]           — Run the server")
-    console.print(f"    [cyan]mcp-maker config[/cyan]          — Generate Claude Desktop config")
+    console.print("    [cyan]mcp-maker serve[/cyan]           — Run the server")
+    console.print("    [cyan]mcp-maker config[/cyan]          — Generate Claude Desktop config")
     console.print(f"    [cyan]python {filename}[/cyan]  — Run directly")
     console.print()
 
@@ -403,7 +396,6 @@ def inspect(
 ):
     """🔍 Preview the schema that would be generated (dry run)."""
     _load_connectors()
-    from mcp_maker.connectors.base import get_connector
 
     console.print()
 
@@ -439,7 +431,7 @@ def inspect(
         console.print(f"    • aggregate_{table.name}(group_by, agg_function)")
         console.print(f"    • export_{table.name}_csv(limit)")
         console.print(f"    • export_{table.name}_json(limit)")
-        console.print(f"    [dim]With --ops insert,update,delete:[/dim]")
+        console.print("    [dim]With --ops insert,update,delete:[/dim]")
         if table.primary_key_columns:
             pk = table.primary_key_columns[0]
             console.print(f"    • insert_{table.name}(...)")
@@ -450,7 +442,7 @@ def inspect(
 
     # Show FK joins
     if schema.foreign_keys:
-        console.print(f"\n  🔗 [bold]Relationship Joins:[/bold]")
+        console.print("\n  🔗 [bold]Relationship Joins:[/bold]")
         for fk in schema.foreign_keys:
             console.print(f"    • join_{fk.from_table}_with_{fk.to_table}(limit, offset)")
             console.print(f"      [dim]{fk.from_table}.{fk.from_column} → {fk.to_table}.{fk.to_column}[/dim]")
@@ -480,9 +472,7 @@ def test(
     Imports the generated server, finds all tools, and invokes each
     list_ tool to verify the server starts and returns data.
     """
-    import importlib.util
     import ast
-    import re
 
     console.print()
     autogen_module = f"_autogen_{os.path.splitext(filename)[0]}"

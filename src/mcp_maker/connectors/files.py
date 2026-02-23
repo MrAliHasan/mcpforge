@@ -30,7 +30,7 @@ SUPPORTED_EXTENSIONS = {
 }
 
 
-from .utils import infer_type as _infer_type
+from .utils import infer_type as _infer_type  # noqa: E402
 
 
 def _inspect_csv(filepath: str) -> Table:

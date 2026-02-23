@@ -13,7 +13,6 @@ from ..core.schema import (
     ColumnType,
     DataSourceSchema,
     Table,
-    map_sql_type,
 )
 
 
@@ -77,7 +76,6 @@ class SupabaseConnector(BaseConnector):
 
     def inspect(self) -> DataSourceSchema:
         """Inspect the Supabase database and return its schema."""
-        from supabase import create_client
         import httpx
 
         url, key = self._get_config()
@@ -104,7 +102,7 @@ class SupabaseConnector(BaseConnector):
             columns = []
             for col_name, col_schema in sorted(properties.items()):
                 col_format = col_schema.get("format", "")
-                col_type_str = col_schema.get("type", "string")
+                col_schema.get("type", "string")
 
                 # Map Supabase/PostgREST types
                 if col_format in ("bigint", "integer", "smallint"):

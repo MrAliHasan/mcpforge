@@ -9,7 +9,6 @@ Discovers keys by type and groups them into logical "tables":
 - Sorted Set keys → scored value sets
 """
 
-import os
 
 from .base import BaseConnector, register_connector
 from ..core.schema import (

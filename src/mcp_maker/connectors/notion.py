@@ -55,7 +55,7 @@ NOTION_TYPE_MAP = {
 }
 
 
-from .utils import sanitize_name as _sanitize_name
+from .utils import sanitize_name as _sanitize_name  # noqa: E402
 
 
 def _extract_property_value(prop: dict) -> any:
@@ -204,7 +204,7 @@ class NotionConnector(BaseConnector):
     def validate(self) -> bool:
         """Check that notion-client is installed and credentials work."""
         try:
-            from notion_client import Client
+            from notion_client import Client  # noqa: F401
         except ImportError:
             raise ImportError(
                 "Notion support requires notion-client.\n"
@@ -226,7 +226,6 @@ class NotionConnector(BaseConnector):
 
     def inspect(self) -> DataSourceSchema:
         """Inspect Notion database(s) and return schema."""
-        from notion_client import Client
 
         client = self._get_client()
         db_ids = self._get_database_ids()
@@ -285,7 +284,7 @@ class NotionConnector(BaseConnector):
 
             # Get row count via query
             try:
-                result = client.databases.query(
+                client.databases.query(
                     database_id=db_id,
                     page_size=1,
                 )

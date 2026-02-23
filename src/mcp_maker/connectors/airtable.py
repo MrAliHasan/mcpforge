@@ -9,8 +9,6 @@ Features:
 """
 
 import os
-import re
-from urllib.parse import urlparse
 
 from .base import BaseConnector, register_connector
 from ..core.schema import (
@@ -65,7 +63,7 @@ AIRTABLE_TYPE_MAP = {
 }
 
 
-from .utils import sanitize_name as _sanitize_name
+from .utils import sanitize_name as _sanitize_name  # noqa: E402
 
 
 class AirtableConnector(BaseConnector):

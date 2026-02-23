@@ -9,10 +9,8 @@ Usage:
 
 import os
 import json
-import sys
 
 import typer
-from rich.console import Console
 from rich.panel import Panel
 
 from .main import app, console

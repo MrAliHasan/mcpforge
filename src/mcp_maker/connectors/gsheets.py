@@ -23,7 +23,7 @@ from ..core.schema import (
 )
 
 
-from .utils import sanitize_name as _sanitize_name, infer_type as _infer_type_value
+from .utils import sanitize_name as _sanitize_name
 
 
 def _infer_type(values: list) -> ColumnType:
@@ -139,7 +139,7 @@ class GoogleSheetsConnector(BaseConnector):
     def validate(self) -> bool:
         """Check that gspread is installed and credentials work."""
         try:
-            import gspread
+            import gspread  # noqa: F401
         except ImportError:
             raise ImportError(
                 "Google Sheets support requires gspread.\n"
@@ -160,7 +160,6 @@ class GoogleSheetsConnector(BaseConnector):
 
     def inspect(self) -> DataSourceSchema:
         """Inspect the Google Sheet and return its schema."""
-        import gspread
 
         client = self._get_client()
         spreadsheet_id = self._get_spreadsheet_id()

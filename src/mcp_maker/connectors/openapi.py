@@ -136,7 +136,7 @@ class OpenAPIConnector(BaseConnector):
 
                 operation_id = endpoint.get("operationId", _sanitize_operation_id(method, path))
                 summary = endpoint.get("summary", f"{method.upper()} {path}")
-                description = endpoint.get("description", summary)
+                endpoint.get("description", summary)
 
                 columns = []
 

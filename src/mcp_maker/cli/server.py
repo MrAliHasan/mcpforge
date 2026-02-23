@@ -6,14 +6,10 @@ import sys
 import platform
 
 import typer
-from rich.console import Console
 from rich.table import Table as RichTable
 from rich.panel import Panel
 
 from mcp_maker import __version__
-from mcp_maker.core.schema import DataSourceSchema
-from mcp_maker.connectors.base import get_connector, register_connector
-from mcp_maker.core.generator import generate_server_code, write_server
 from .main import app, console
 
 
@@ -56,7 +52,7 @@ def serve(
         Panel.fit("🚀 [bold cyan]MCP-Maker Server[/bold cyan]", subtitle="v" + __version__)
     )
     console.print(f"  Running: [green]{server_file}[/green]")
-    console.print(f"  Press [bold]Ctrl+C[/bold] to stop\n")
+    console.print("  Press [bold]Ctrl+C[/bold] to stop\n")
 
     try:
         subprocess.run([sys.executable, server_file], check=True)
@@ -259,10 +255,10 @@ def config(
 
     config_path = _get_claude_config_path()
     console.print()
-    console.print(f"  Add this to your Claude Desktop config:")
+    console.print("  Add this to your Claude Desktop config:")
     if config_path:
         console.print(f"  📁 [dim]{config_path}[/dim]")
     console.print()
     console.print_json(json.dumps(snippet, indent=2))
     console.print()
-    console.print(f"  [dim]Or run [cyan]mcp-maker config --install[/cyan] to auto-write it.[/dim]\n")
+    console.print("  [dim]Or run [cyan]mcp-maker config --install[/cyan] to auto-write it.[/dim]\n")

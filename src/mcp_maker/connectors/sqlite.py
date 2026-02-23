@@ -8,7 +8,6 @@ import sqlite3
 from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
-    ColumnType,
     DataSourceSchema,
     ForeignKey,
     Table,

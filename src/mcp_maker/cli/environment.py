@@ -1,18 +1,11 @@
 
-import json
 import os
-import subprocess
-import sys
 
 import typer
-from rich.console import Console
 from rich.table import Table as RichTable
 from rich.panel import Panel
 
 from mcp_maker import __version__
-from mcp_maker.core.schema import DataSourceSchema
-from mcp_maker.connectors.base import get_connector, register_connector
-from mcp_maker.core.generator import generate_server_code, write_server
 from .main import app, console
 
 
@@ -99,7 +92,7 @@ def _env_list(env_file: str):
 
     if not env_vars:
         console.print(f"\n  No variables found in [dim]{env_file}[/dim]")
-        console.print(f"\n  Set one with: [cyan]mcp-maker env set KEY VALUE[/cyan]")
+        console.print("\n  Set one with: [cyan]mcp-maker env set KEY VALUE[/cyan]")
         console.print()
         console.print("  [dim]Common variables:[/dim]")
         for k, desc in _KNOWN_VARS.items():
