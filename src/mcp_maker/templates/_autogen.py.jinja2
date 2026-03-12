@@ -188,6 +188,9 @@ mcp.tool = _otel_tool_decorator
 
 {% if auth_mode == "api-key" %}
 # ─── API Key Authentication ───
+# DECORATOR STACKING ORDER (innermost → outermost):
+# 1. rate_limit  2. otel  3. auth (this)  4. audit  5. cache
+# Each decorator captures the previous mcp.tool and wraps it.
 
 _MCP_API_KEY = os.environ.get("MCP_API_KEY")
 if not _MCP_API_KEY:
@@ -203,12 +206,26 @@ _original_tool_auth = mcp.tool
 def _auth_tool_decorator(*args, **kwargs):
     def decorator(func):
         import functools
+        import inspect as _inspect
+
+        # Get original signature and add api_key parameter
+        orig_sig = _inspect.signature(func)
+
         @functools.wraps(func)
-        def wrapper(*w_args, **w_kwargs):
-            # Check for API key in environment (set by transport layer)
+        def wrapper(*w_args, api_key: str = "", **w_kwargs):
             if not _MCP_API_KEY:
                 raise PermissionError("Server API key not configured. Set MCP_API_KEY env var.")
+            if api_key != _MCP_API_KEY:
+                raise PermissionError("Invalid API key.")
             return func(*w_args, **w_kwargs)
+
+        # Update wrapper signature to include api_key
+        params = list(orig_sig.parameters.values()) + [
+            _inspect.Parameter("api_key", _inspect.Parameter.KEYWORD_ONLY, default="", annotation=str)
+        ]
+        wrapper.__signature__ = orig_sig.replace(parameters=params)
+        wrapper.__doc__ = (func.__doc__ or "") + "\n\n    Args:\n        api_key: Required API key for authentication."
+
         return _original_tool_auth(*args, **kwargs)(wrapper)
     return decorator
 

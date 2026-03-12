@@ -70,6 +70,13 @@ class HubSpotConnector(BaseConnector):
             )
         return token
 
+    def _sanitize_uri(self) -> str:
+        """Return URI with token redacted for safe use in error messages."""
+        uri = self.uri
+        if uri.startswith("hubspot://pat="):
+            return "hubspot://pat=***REDACTED***"
+        return uri.split("?")[0] + "?***"
+
     def _get_headers(self) -> dict:
         return {
             "Authorization": f"Bearer {self._get_api_key()}",

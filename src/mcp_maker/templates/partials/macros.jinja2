@@ -38,17 +38,36 @@ def schema_{{ table.name }}() -> dict:
 {% endmacro %}
 
 
-{# ─── Consolidated Mode: Table Whitelist + Validator ─── #}
+{# ─── Consolidated Mode: Table + Column Whitelist + Validators ─── #}
 {% macro consolidated_whitelist(tables) %}
-# Known tables discovered at generation time — prevents SQL injection
+# Known tables and columns discovered at generation time — prevents SQL injection
 _KNOWN_TABLES = { {% for table in tables %}
 {% set tbl_ops = rbac_config.get(table.name | lower, ops) if rbac_config else ops %}"{{ table.name }}", {% endfor %} }
+
+_KNOWN_COLUMNS = {
+{% for table in tables %}
+    "{{ table.name }}": { {% for col in table.columns %}"{{ col.name }}", {% endfor %} },
+{% endfor %}
+}
 
 def _validate_table(name: str) -> str:
     """Validate that a table name is in the known set to prevent SQL injection."""
     if name not in _KNOWN_TABLES:
         raise ValueError(f"Unknown table: {name}. Available: {', '.join(sorted(_KNOWN_TABLES))}")
     return name
+
+def _validate_column(table: str, column: str) -> str:
+    """Validate that a column name exists in the given table to prevent SQL injection."""
+    # Strip operator suffixes (__gt, __lt, __like, __in)
+    base_col = column
+    for suffix in ("__gt", "__lt", "__like", "__in"):
+        if base_col.endswith(suffix):
+            base_col = base_col[:-len(suffix)]
+            break
+    valid = _KNOWN_COLUMNS.get(table, set())
+    if base_col not in valid:
+        raise ValueError(f"Unknown column '{base_col}' for table '{table}'. Available: {', '.join(sorted(valid))}")
+    return base_col
 {% endmacro %}
 
 

@@ -35,6 +35,9 @@ def _env_read(env_file: str) -> dict[str, str]:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
+            # Handle 'export KEY=val' syntax
+            if line.startswith("export "):
+                line = line[len("export "):]
             if "=" in line:
                 k, _, v = line.partition("=")
                 v = v.strip()
@@ -44,6 +47,10 @@ def _env_read(env_file: str) -> dict[str, str]:
                     v = v[1:-1]
                     # Unescape escaped quotes within the value
                     v = v.replace('\\"', '"').replace("\\'", "'")
+                else:
+                    # Strip inline comments from unquoted values
+                    if " #" in v:
+                        v = v[:v.index(" #")].rstrip()
                 env_vars[k.strip()] = v
     return env_vars
 
