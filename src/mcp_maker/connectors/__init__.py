@@ -6,8 +6,8 @@ inspect its structure, and produce a universal MCP-Maker schema.
 """
 
 from .base import BaseConnector
-from .sqlite import SQLiteConnector
 from .files import FileConnector
+from .sqlite import SQLiteConnector
 
 # Optional connectors — only import if their dependencies are available
 try:

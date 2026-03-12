@@ -2,17 +2,16 @@
 import os
 
 import typer
-from rich.table import Table as RichTable
 from rich.panel import Panel
+from rich.table import Table as RichTable
 
 from mcp_maker import __version__
-from mcp_maker.core.schema import DataSourceSchema
 from mcp_maker.connectors.base import get_connector
-from mcp_maker.core.generator import write_server, read_lock_file
-from .connectors_loader import load_all_connectors
-from .schema_ops import merge_schemas, filter_tables, detect_migration
-from .main import app, console
+from mcp_maker.core.generator import read_lock_file, write_server
 
+from .connectors_loader import load_all_connectors
+from .main import app, console
+from .schema_ops import detect_migration, filter_tables, merge_schemas
 
 
 def _print_schema_summary(schema):
@@ -235,9 +234,9 @@ def init(
             raise typer.Exit(code=1)
         try:
             import yaml
-            with open(config, "r", encoding="utf-8") as f:
+            with open(config, encoding="utf-8") as f:
                 cfg_data = yaml.safe_load(f)
-            
+
             if isinstance(cfg_data, dict) and "tables" in cfg_data:
                 rbac_config = {}
                 for tbl_name, tbl_cfg in cfg_data["tables"].items():
@@ -315,18 +314,18 @@ def init(
         console.print(f"  🎉 Created: [bold green]{server_path}[/bold green] (Safe to edit)")
     else:
         console.print(f"  ⏭️  Skipped: [bold yellow]{server_path}[/bold yellow] (Already exists, preserving customizations)")
-    
+
     console.print(f"  ♻️  Updated: [bold cyan]{autogen_path}[/bold cyan] (Auto-generated tools)")
     console.print(f"  🔐 Created: [bold cyan]{env_example_path}[/bold cyan]")
-    
+
     if auto_commit:
         from mcp_maker.core.git_utils import commit_schema_changes
         diff_to_pass = diff
-            
+
         files_to_commit = [os.path.basename(autogen_path), ".mcp-maker.lock", ".env.example", ".gitignore"]
         if server_created:
             files_to_commit.append(os.path.basename(server_path))
-            
+
         commit_schema_changes(output, files_to_commit, diff=diff_to_pass)
 
     console.print(f"  🔧 [yellow]Operations enabled:[/yellow] {', '.join(op.upper() for op in parsed_ops)}")
@@ -430,8 +429,8 @@ def test(
     Imports the generated server, finds all tools, and invokes each
     list_ tool to verify the server starts and returns data.
     """
-    import sys
     import importlib.util
+    import sys
 
     console.print()
     autogen_module = f"_autogen_{os.path.splitext(filename)[0]}"
@@ -463,7 +462,7 @@ def test(
 
     mcp_instance = module.mcp
     tool_funcs = []
-    
+
     if hasattr(mcp_instance, "_tool_registry"):
         tool_funcs = list(mcp_instance._tool_registry.keys())
     else:

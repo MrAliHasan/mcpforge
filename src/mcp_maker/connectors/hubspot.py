@@ -13,13 +13,13 @@ Auth: Extract from URI or HUBSPOT_ACCESS_TOKEN env var
 import os
 import urllib.parse
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
+from .base import BaseConnector, register_connector
 
 HUBSPOT_TYPE_MAP = {
     "string": ColumnType.STRING,
@@ -33,7 +33,7 @@ HUBSPOT_TYPE_MAP = {
 
 # The objects we will discover by default
 DEFAULT_OBJECTS = [
-    "contacts", "companies", "deals", "tickets", "products", "quotes", 
+    "contacts", "companies", "deals", "tickets", "products", "quotes",
     "notes", "tasks", "meetings", "emails", "calls"
 ]
 
@@ -53,11 +53,11 @@ class HubSpotConnector(BaseConnector):
         uri = self.uri
         if uri.startswith("hubspot://pat="):
             return uri[len("hubspot://pat="):]
-        
+
         parsed = urllib.parse.urlparse(uri)
         if parsed.password:
             return parsed.password
-        
+
         query = urllib.parse.parse_qs(parsed.query)
         if "pat" in query:
             return query["pat"][0]
@@ -156,7 +156,7 @@ class HubSpotConnector(BaseConnector):
 
                 # The LLM needs the "label" to understand the field context
                 desc = f"{prop_label}"
-                
+
                 # Expose enumeration (select) options
                 if prop_type == "enumeration" and prop.get("options"):
                     opts = [opt["label"] for opt in prop["options"] if not opt.get("hidden")]

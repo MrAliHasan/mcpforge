@@ -2,13 +2,12 @@
 import os
 
 import typer
-from rich.table import Table as RichTable
 from rich.panel import Panel
+from rich.table import Table as RichTable
 
 from mcp_maker import __version__
+
 from .main import app, console
-
-
 
 ENV_FILE = ".env"
 
@@ -30,7 +29,7 @@ def _env_read(env_file: str) -> dict[str, str]:
     env_vars = {}
     if not os.path.isfile(env_file):
         return env_vars
-    with open(env_file, "r") as f:
+    with open(env_file) as f:
         for line in f:
             line = line.strip()
             if not line or line.startswith("#"):

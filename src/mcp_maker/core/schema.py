@@ -7,7 +7,7 @@ The generator then uses these schemas to create MCP server code.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class ColumnType(str, Enum):
@@ -25,7 +25,7 @@ class ColumnType(str, Enum):
 
 
 # Map common SQL types to universal types
-SQL_TYPE_MAP: Dict[str, ColumnType] = {
+SQL_TYPE_MAP: dict[str, ColumnType] = {
     # String types
     "text": ColumnType.STRING,
     "varchar": ColumnType.STRING,
@@ -88,7 +88,7 @@ class Column:
     type: ColumnType
     nullable: bool = True
     primary_key: bool = False
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass
@@ -96,16 +96,16 @@ class Table:
     """A table or collection in the data source."""
 
     name: str
-    columns: List[Column] = field(default_factory=list)
-    row_count: Optional[int] = None
-    description: Optional[str] = None
+    columns: list[Column] = field(default_factory=list)
+    row_count: int | None = None
+    description: str | None = None
 
     @property
-    def primary_key_columns(self) -> List[Column]:
+    def primary_key_columns(self) -> list[Column]:
         return [c for c in self.columns if c.primary_key]
 
     @property
-    def searchable_columns(self) -> List[Column]:
+    def searchable_columns(self) -> list[Column]:
         return [
             c for c in self.columns
             if c.type in (ColumnType.STRING, ColumnType.INTEGER)
@@ -119,7 +119,7 @@ class Resource:
     name: str
     uri: str
     mime_type: str = "text/plain"
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass
@@ -151,16 +151,16 @@ class DataSourceSchema:
     source_uri: str
     """Connection string or path to the data source."""
 
-    tables: List[Table] = field(default_factory=list)
+    tables: list[Table] = field(default_factory=list)
     """Tables/collections discovered in the data source."""
 
-    resources: List[Resource] = field(default_factory=list)
+    resources: list[Resource] = field(default_factory=list)
     """Static resources (files, etc.) discovered."""
 
-    foreign_keys: List[ForeignKey] = field(default_factory=list)
+    foreign_keys: list[ForeignKey] = field(default_factory=list)
     """Foreign key relationships between tables."""
 
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     """Additional metadata about the data source."""
 
     @property

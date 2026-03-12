@@ -2,8 +2,8 @@
 import pytest
 
 from mcp_maker.connectors.base import get_connector
-from mcp_maker.connectors.sqlite import SQLiteConnector
 from mcp_maker.connectors.files import FileConnector
+from mcp_maker.connectors.sqlite import SQLiteConnector
 
 
 class TestConnectorRegistry:

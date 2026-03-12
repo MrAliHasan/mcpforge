@@ -8,7 +8,6 @@ from typer.testing import CliRunner
 from mcp_maker.cli import app
 from mcp_maker.cli.environment import _env_read, _env_write, _mask_value
 
-
 runner = CliRunner()
 
 

@@ -1,10 +1,10 @@
 
 import pytest
 
+from mcp_maker.connectors.notion import NotionConnector
 from mcp_maker.core.schema import (
     ColumnType,
 )
-from mcp_maker.connectors.notion import NotionConnector
 
 
 class TestNotionConnector:

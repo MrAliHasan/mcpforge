@@ -6,14 +6,14 @@ Each sheet in the workbook becomes a table, with the first row as column headers
 
 import os
 
-from .base import BaseConnector, register_connector
-from .utils import sanitize_name
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
+from .base import BaseConnector, register_connector
+from .utils import sanitize_name
 
 
 # Map Python/openpyxl types to our universal types

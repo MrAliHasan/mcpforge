@@ -10,12 +10,11 @@ from mcp_maker.cli.deploy import (
     _detect_requirements,
     _generate_dockerfile,
     _generate_dockerignore,
+    _generate_fly_config,
     _generate_railway_config,
     _generate_render_config,
-    _generate_fly_config,
     _write_file,
 )
-
 
 runner = CliRunner()
 

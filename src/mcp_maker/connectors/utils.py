@@ -3,6 +3,7 @@ Shared utility functions for MCP-Maker connectors.
 """
 
 import re
+
 from mcp_maker.core.schema import ColumnType
 
 

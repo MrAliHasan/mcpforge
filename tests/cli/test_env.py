@@ -43,7 +43,7 @@ class TestEnvCommand:
         assert "..." in _mask_value("ntn_xxxxxxxxxxxx")
 
     def test_env_set_and_delete(self, tmp_path):
-        from mcp_maker.cli import _env_read, _env_set, _env_delete
+        from mcp_maker.cli import _env_delete, _env_read, _env_set
 
         env_file = str(tmp_path / ".env")
         _env_set(env_file, "TEST_KEY", "test_value")

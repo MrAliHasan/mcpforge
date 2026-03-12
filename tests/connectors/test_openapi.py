@@ -13,7 +13,6 @@ from mcp_maker.connectors.openapi import (
 )
 from mcp_maker.core.schema import ColumnType
 
-
 SAMPLE_SPEC = {
     "openapi": "3.0.0",
     "info": {"title": "Pet Store", "version": "1.0.0"},

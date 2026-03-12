@@ -4,7 +4,6 @@ MCP-Maker PostgreSQL Connector — Inspect PostgreSQL databases.
 
 from urllib.parse import urlparse
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     DataSourceSchema,
@@ -12,6 +11,7 @@ from ..core.schema import (
     Table,
     map_sql_type,
 )
+from .base import BaseConnector, register_connector
 
 
 class PostgresConnector(BaseConnector):

@@ -4,10 +4,9 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
-
+from mcp_maker.connectors.airtable import AirtableConnector
 from mcp_maker.connectors.gsheets import GoogleSheetsConnector
 from mcp_maker.connectors.notion import NotionConnector
-from mcp_maker.connectors.airtable import AirtableConnector
 from mcp_maker.core.schema import ColumnType
 
 

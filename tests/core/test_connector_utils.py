@@ -3,15 +3,15 @@
 import os
 import tempfile
 
-from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 from mcp_maker.core.generator import generate_server_code
+from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 
 
 class TestConnectorRegistration:
     """All optional connectors should be importable from the connectors package."""
 
     def test_base_connectors_always_available(self):
-        from mcp_maker.connectors import BaseConnector, SQLiteConnector, FileConnector
+        from mcp_maker.connectors import BaseConnector, FileConnector, SQLiteConnector
         assert BaseConnector is not None
         assert SQLiteConnector is not None
         assert FileConnector is not None

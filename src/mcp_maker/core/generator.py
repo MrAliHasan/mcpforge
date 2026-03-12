@@ -132,7 +132,7 @@ def format_and_verify_code(code: str, filename: str) -> str:
         console.print(f"\n[bold red]SyntaxError in generated code for {filename}:[/bold red] {e}")
         console.print("[dim]This may be caused by complex schemas. Please report this issue.[/dim]")
         raise SystemExit(1) from e
-    
+
     try:
         result = subprocess.run(
             [sys.executable, "-m", "black", "-", "-q"],
@@ -181,11 +181,11 @@ def write_server(
     autogen_filename = f"{autogen_module}.py"
 
     server_code, autogen_code = generate_server_code(
-        schema, 
-        ops=ops, 
+        schema,
+        ops=ops,
         rbac_config=rbac_config,
-        semantic=semantic, 
-        default_limit=default_limit, 
+        semantic=semantic,
+        default_limit=default_limit,
         max_limit=max_limit,
         target_filename=filename,
         autogen_module=autogen_module,
@@ -249,7 +249,7 @@ def read_lock_file(output_dir: str) -> dict | None:
     if not os.path.exists(lock_path):
         return None
     try:
-        with open(lock_path, "r", encoding="utf-8") as f:
+        with open(lock_path, encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None

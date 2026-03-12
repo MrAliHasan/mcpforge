@@ -1,5 +1,6 @@
 import os
 from unittest.mock import patch
+
 import pytest
 
 # Skip this entire test module if requests is not installed
@@ -7,6 +8,7 @@ pytest.importorskip("requests")
 
 from mcp_maker.connectors.hubspot import HubSpotConnector
 from mcp_maker.core.schema import ColumnType
+
 
 class TestHubSpotMock:
     @patch("requests.get")
@@ -31,20 +33,20 @@ class TestHubSpotMock:
             elif "/properties/" in url:
                 return MockResponse({"results": []})
             return MockResponse({"results": []})
-            
+
         mock_get.side_effect = mock_hubspot_api
-        
+
         # Test inspection
         with patch.dict(os.environ, {"HUBSPOT_ACCESS_TOKEN": "test_token"}):
             conn = HubSpotConnector(uri="hubspot://")
             schema = conn.inspect()
-            
+
             assert schema.source_type == "hubspot"
             assert len(schema.tables) == 11
-            
+
             contacts_table = next(t for t in schema.tables if t.name == "contacts")
             assert len(contacts_table.columns) == 2
-            
+
             email_col = next(c for c in contacts_table.columns if c.name == "email")
             assert email_col.type == ColumnType.STRING
             assert email_col.primary_key is True

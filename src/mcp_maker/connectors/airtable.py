@@ -10,13 +10,13 @@ Features:
 
 import os
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
+from .base import BaseConnector, register_connector
 
 # Map Airtable field types to our universal ColumnType
 AIRTABLE_TYPE_MAP = {

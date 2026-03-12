@@ -7,8 +7,8 @@ Usage:
     mcp-maker deploy --platform fly
 """
 
-import os
 import json
+import os
 
 import typer
 from rich.panel import Panel
@@ -122,13 +122,13 @@ def _write_file(filename: str, content: str):
 
 def _detect_requirements(server_file: str) -> list[str]:
     """Auto-detect required packages from the generated server code."""
-    with open(server_file, "r", encoding="utf-8") as f:
+    with open(server_file, encoding="utf-8") as f:
         code = f.read()
 
     # Also read autogen file if it exists
     autogen_file = os.path.join(os.path.dirname(server_file), "_autogen_mcp_server.py")
     if os.path.isfile(autogen_file):
-        with open(autogen_file, "r", encoding="utf-8") as f:
+        with open(autogen_file, encoding="utf-8") as f:
             code += "\n" + f.read()
 
     reqs = ["mcp>=1.0.0"]  # Always needed

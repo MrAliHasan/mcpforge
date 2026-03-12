@@ -1,13 +1,14 @@
+import importlib.util
 import os
+import sqlite3
 import sys
 import tempfile
-import sqlite3
-import importlib.util
 
 import pytest
 
 from mcp_maker.connectors.sqlite import SQLiteConnector
 from mcp_maker.core.generator import write_server
+
 
 @pytest.fixture
 def sample_e2e_db():
@@ -73,7 +74,7 @@ async def test_generated_server_execution(sample_e2e_db, monkeypatch):
             # Ensure the 'mcp' object is exported
             assert hasattr(module, "mcp")
             getattr(module, "mcp")
-            
+
             # The tools are fastmcp.utilities.types.Tool objects, we need to execute the function directly.
             # In FastMCP, tools are added via decorator, but we can call the underlying python function if we want.
             # Or we can just call it via mcp._tool_registry?
@@ -84,7 +85,7 @@ async def test_generated_server_execution(sample_e2e_db, monkeypatch):
             # 4. Invoke list tool
             list_func = getattr(module, "list_e2e_users")
             response = list_func(limit=10, offset=0)
-            
+
             # 5. Assertions — list_ now returns {results, total, has_more, next_offset}
             assert isinstance(response, dict), f"Expected dict, got {type(response)}"
             results = response["results"]

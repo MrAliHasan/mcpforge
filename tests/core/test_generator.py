@@ -1,18 +1,18 @@
 import os
 import tempfile
 
+from typer.testing import CliRunner
 
+from mcp_maker.cli import app
+from mcp_maker.connectors.files import FileConnector
+from mcp_maker.connectors.sqlite import SQLiteConnector
+from mcp_maker.core.generator import generate_server_code
 from mcp_maker.core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
-from mcp_maker.connectors.sqlite import SQLiteConnector
-from mcp_maker.connectors.files import FileConnector
-from mcp_maker.core.generator import generate_server_code
-from mcp_maker.cli import app
-from typer.testing import CliRunner
 
 
 class TestCodeGenerator:
@@ -126,7 +126,7 @@ class TestGeneratedCodePatterns:
 
     def test_postgres_has_connection_pool(self):
         """Generated Postgres code should use a ThreadedConnectionPool."""
-        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+        from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 
         schema = DataSourceSchema(
             source_type="postgres",
@@ -151,7 +151,7 @@ class TestGeneratedCodePatterns:
 
     def test_mysql_has_connection_pool(self):
         """Generated MySQL code should use a queue-based connection pool."""
-        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+        from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 
         schema = DataSourceSchema(
             source_type="mysql",
@@ -206,8 +206,8 @@ class TestGeneratedCodePatterns:
 
 class TestRBAC:
     def test_rbac_filters_operations(self):
-        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
-        
+        from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
+
         schema = DataSourceSchema(
             source_type="sqlite",
             source_uri="sqlite:///test.db",
@@ -216,23 +216,23 @@ class TestRBAC:
                 Table(name="orders", columns=[Column(name="id", type=ColumnType.INTEGER, primary_key=True)]),
             ]
         )
-        
+
         # Test global ops
         server_code, autogen_code = generate_server_code(schema, ops=["read", "insert"])
         assert "def list_users(" in autogen_code
         assert "def list_orders(" in autogen_code
         assert "def insert_orders(" in autogen_code
-        
+
         # Test granular RBAC config
         rbac_config = {
             "users": ["read"],
             "orders": ["insert"]
         }
-        
+
         server_code, autogen_code = generate_server_code(schema, ops=["read", "insert"], rbac_config=rbac_config)
         assert "def list_users(" in autogen_code    # users has read
         assert "def insert_users(" not in autogen_code # users missing insert
-        
+
         assert "def list_orders(" not in autogen_code  # orders missing read
         assert "def insert_orders(" in autogen_code   # orders has insert
 
@@ -351,7 +351,7 @@ class TestSchemaVersioning:
 
     def test_lock_file_written_on_generate(self, sample_db):
         """write_server should create .mcp-maker.lock."""
-        from mcp_maker.core.generator import write_server, read_lock_file
+        from mcp_maker.core.generator import read_lock_file, write_server
         connector = SQLiteConnector(f"sqlite:///{sample_db}")
         schema = connector.inspect()
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -5,7 +5,6 @@ MCP-Maker SQLite Connector — Inspect SQLite databases.
 import os
 import sqlite3
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     DataSourceSchema,
@@ -13,6 +12,7 @@ from ..core.schema import (
     Table,
     map_sql_type,
 )
+from .base import BaseConnector, register_connector
 
 
 class SQLiteConnector(BaseConnector):

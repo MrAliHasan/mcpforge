@@ -14,13 +14,13 @@ Auth: NOTION_API_KEY env var (internal integration token)
 import os
 import re
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
+from .base import BaseConnector, register_connector
 
 # Map Notion property types to our universal ColumnType
 NOTION_TYPE_MAP = {

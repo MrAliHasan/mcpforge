@@ -68,7 +68,7 @@ class TestSchema:
 
 class TestSchemaFiltering:
     def test_filter_tables_by_name(self):
-        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+        from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 
         schema = DataSourceSchema(
             source_type="sqlite",
@@ -90,7 +90,7 @@ class TestSchemaFiltering:
         assert schema.tables[1].name == "orders"
 
     def test_filter_tables_case_insensitive(self):
-        from mcp_maker.core.schema import DataSourceSchema, Table, Column, ColumnType
+        from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 
         schema = DataSourceSchema(
             source_type="sqlite",

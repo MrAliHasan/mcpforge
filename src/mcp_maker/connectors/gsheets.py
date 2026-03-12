@@ -14,15 +14,13 @@ Auth: GOOGLE_SERVICE_ACCOUNT_FILE env var pointing to credentials JSON
 import os
 import re
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
-
-
+from .base import BaseConnector, register_connector
 from .utils import sanitize_name as _sanitize_name
 
 

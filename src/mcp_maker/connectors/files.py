@@ -6,9 +6,7 @@ import csv
 import json
 import os
 from pathlib import Path
-from typing import List
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
@@ -16,6 +14,7 @@ from ..core.schema import (
     Resource,
     Table,
 )
+from .base import BaseConnector, register_connector
 
 # Supported file extensions
 SUPPORTED_EXTENSIONS = {
@@ -37,7 +36,7 @@ def _inspect_csv(filepath: str) -> Table:
     """Inspect a CSV file and return its schema as a Table."""
     name = Path(filepath).stem
 
-    with open(filepath, "r", newline="", encoding="utf-8-sig") as f:
+    with open(filepath, newline="", encoding="utf-8-sig") as f:
         reader = csv.DictReader(f)
         fieldnames = reader.fieldnames or []
 
@@ -89,7 +88,7 @@ def _inspect_json(filepath: str) -> Table:
     """Inspect a JSON file and return its schema as a Table."""
     name = Path(filepath).stem
 
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         data = json.load(f)
 
     # Handle both array of objects and single object
@@ -156,8 +155,8 @@ class FileConnector(BaseConnector):
     def inspect(self) -> DataSourceSchema:
         """Inspect all files in the directory and return the schema."""
         dir_path = os.path.expanduser(self.uri)
-        tables: List[Table] = []
-        resources: List[Resource] = []
+        tables: list[Table] = []
+        resources: list[Resource] = []
 
         for filename in sorted(os.listdir(dir_path)):
             filepath = os.path.join(dir_path, filename)

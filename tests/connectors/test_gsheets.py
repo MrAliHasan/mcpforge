@@ -1,10 +1,10 @@
 
 import pytest
 
+from mcp_maker.connectors.gsheets import GoogleSheetsConnector
 from mcp_maker.core.schema import (
     ColumnType,
 )
-from mcp_maker.connectors.gsheets import GoogleSheetsConnector
 
 
 class TestGoogleSheetsConnector:

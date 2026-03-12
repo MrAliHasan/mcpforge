@@ -2,13 +2,12 @@
 
 import os
 import tempfile
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner
 
 from mcp_maker.cli import app
 from mcp_maker.cli.server import _get_claude_config_path
-
 
 runner = CliRunner()
 

@@ -1,15 +1,16 @@
 
 import json
 import os
+import platform
 import subprocess
 import sys
-import platform
 
 import typer
-from rich.table import Table as RichTable
 from rich.panel import Panel
+from rich.table import Table as RichTable
 
 from mcp_maker import __version__
+
 from .main import app, console
 
 
@@ -228,7 +229,7 @@ def config(
         else:
             # Read existing config or create new
             if os.path.isfile(config_path):
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     try:
                         existing = json.load(f)
                     except json.JSONDecodeError:

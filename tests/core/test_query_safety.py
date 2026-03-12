@@ -5,14 +5,11 @@ before interpolating them into SQL, and that batch operations filter inputs
 against the known schema.
 """
 
-import os
-import tempfile
 
-import pytest
 
-from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 from mcp_maker.connectors.sqlite import SQLiteConnector
 from mcp_maker.core.generator import generate_server_code
+from mcp_maker.core.schema import Column, ColumnType, DataSourceSchema, Table
 
 
 class TestConsolidatedColumnWhitelist:

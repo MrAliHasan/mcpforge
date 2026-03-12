@@ -6,13 +6,13 @@ Each API endpoint becomes a tool. Supports OpenAPI 3.x and Swagger 2.x specs.
 
 import os
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
+from .base import BaseConnector, register_connector
 
 
 def _openapi_type_to_column_type(param_schema: dict) -> ColumnType:
@@ -84,7 +84,7 @@ class OpenAPIConnector(BaseConnector):
 
         # Local file
         spec_path = os.path.expanduser(spec_path)
-        with open(spec_path, "r", encoding="utf-8") as f:
+        with open(spec_path, encoding="utf-8") as f:
             content = f.read()
 
         ext = os.path.splitext(spec_path)[1].lower()

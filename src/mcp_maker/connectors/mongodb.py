@@ -5,14 +5,13 @@ Each collection becomes a table. Schema is inferred by sampling documents.
 """
 
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
-
+from .base import BaseConnector, register_connector
 
 # Map BSON/Python types to our universal types
 _BSON_TYPE_MAP = {

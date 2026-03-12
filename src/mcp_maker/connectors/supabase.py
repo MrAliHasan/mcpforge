@@ -7,13 +7,13 @@ Requires SUPABASE_URL and SUPABASE_KEY environment variables.
 
 import os
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
+from .base import BaseConnector, register_connector
 
 
 class SupabaseConnector(BaseConnector):

@@ -84,7 +84,7 @@ def get_connector(uri: str) -> BaseConnector:
         scheme = uri.split("://")[0].lower()
         if scheme in _CONNECTOR_REGISTRY:
             return _CONNECTOR_REGISTRY[scheme](uri)
-        
+
         # Dependency hints
         hints = {
             "postgres": "pip install mcp-maker[postgres]",

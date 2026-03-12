@@ -10,13 +10,13 @@ Discovers keys by type and groups them into logical "tables":
 """
 
 
-from .base import BaseConnector, register_connector
 from ..core.schema import (
     Column,
     ColumnType,
     DataSourceSchema,
     Table,
 )
+from .base import BaseConnector, register_connector
 
 
 class RedisConnector(BaseConnector):

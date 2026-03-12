@@ -1,4 +1,5 @@
 import subprocess
+
 from rich.console import Console
 
 console = Console()
@@ -37,7 +38,7 @@ def commit_schema_changes(output_dir: str, files_to_commit: list[str], diff: dic
             added = len(diff.get("added", []))
             removed = len(diff.get("removed", []))
             changed = len(diff.get("column_changes", {}))
-            
+
             details = []
             if added:
                 details.append(f"+{added} tab")
@@ -45,7 +46,7 @@ def commit_schema_changes(output_dir: str, files_to_commit: list[str], diff: dic
                 details.append(f"-{removed} tab")
             if changed:
                 details.append(f"~{changed} alt")
-            
+
             if details:
                 msg += f"\n\nChanges: {', '.join(details)}."
 
@@ -55,7 +56,7 @@ def commit_schema_changes(output_dir: str, files_to_commit: list[str], diff: dic
             cwd=output_dir,
             capture_output=True
         )
-        
+
         output_str = res.stdout.decode().lower()
         if res.returncode == 0:
             console.print("  [green]✅ Auto-committed schema changes to Git.[/green]")
@@ -63,6 +64,6 @@ def commit_schema_changes(output_dir: str, files_to_commit: list[str], diff: dic
             console.print("  [dim]• Git: No file changes to commit.[/dim]")
         else:
             console.print(f"  [dim]⚠️  Auto-commit failed: {res.stdout.decode().strip()}[/dim]")
-            
+
     except Exception as e:
         console.print(f"  [dim]⚠️  Auto-commit process failed: {e}[/dim]")
