@@ -26,3 +26,10 @@ htmlcov/
 *.log
 .chroma/
 
+# Development artifacts
+test_server/
+test_server_otel/
+replace_ops.py
+test_rbac.yml
+.mcp-maker.lock
+.mcp-maker.lock

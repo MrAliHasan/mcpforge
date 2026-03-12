@@ -92,13 +92,10 @@ from .your_connector import YourDBConnector
 
 ### Step 3: Add Lazy Loading in CLI
 
-Add the import to `src/mcp_maker/cli/generator.py`'s `_load_connectors()` function:
+Add your connector to `src/mcp_maker/cli/generator.py`'s `_load_connectors()` function:
 
 ```python
-    try:
-        from mcp_maker.connectors import your_connector  # noqa: F401
-    except ImportError:
-        pass
+    _try_load("yourdb")
 ```
 
 ### Step 4: Write Tests
@@ -127,11 +124,14 @@ Besides connectors, we welcome:
 ## 🧪 Running Tests
 
 ```bash
-# Run all tests
-pytest tests/ -v
+# Using Make (recommended)
+make test          # Run all tests
+make lint          # Run linter
+make check         # Run lint + tests
 
-# Run a specific test module
-pytest tests/connectors/test_sqlite.py -v
+# Or directly
+pytest tests/ -v
+ruff check src/ tests/
 ```
 
 ## 📐 Code Style

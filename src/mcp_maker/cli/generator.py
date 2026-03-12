@@ -9,43 +9,11 @@ from mcp_maker import __version__
 from mcp_maker.core.schema import DataSourceSchema
 from mcp_maker.connectors.base import get_connector
 from mcp_maker.core.generator import write_server, read_lock_file
+from .connectors_loader import load_all_connectors
+from .schema_ops import merge_schemas, filter_tables, detect_migration
 from .main import app, console
 
-def _load_connectors():
-    """Import all built-in connectors to trigger registration."""
-    from mcp_maker.connectors import sqlite  # noqa: F401
-    from mcp_maker.connectors import files  # noqa: F401
 
-    def _try_load(name: str):
-        import importlib
-        try:
-            importlib.import_module(f"mcp_maker.connectors.{name}")
-        except ModuleNotFoundError as e:
-            # Only ignore if the failure is gracefully missing a 3rd-party dep (e.g. psycopg2)
-            # If the connector module itself is missing or an internal module is missing, it will still raise
-            if e.name == f"mcp_maker.connectors.{name}":
-                return  # Safely ignore missing optional connector file itself if deleted
-            if e.name != f"mcp_maker.connectors.{name}" and "No module named" not in str(e):
-                import logging
-                logging.warning(f"Failed to load connector '{name}': {e}")
-            else:
-                # If a 3rd party dep is missing, it's fine. 
-                pass
-        except Exception as e:
-            import logging
-            logging.warning(f"Failed to load connector '{name}' due to error: {e}")
-
-    # Optional connectors — only load if dependencies available
-    _try_load("postgres")
-    _try_load("mysql")
-    _try_load("airtable")
-    _try_load("gsheets")
-    _try_load("notion")
-    _try_load("excel")
-    _try_load("mongodb")
-    _try_load("supabase")
-    _try_load("openapi")
-    _try_load("redis_connector")
 
 def _print_schema_summary(schema):
     """Pretty-print a schema summary using Rich."""
@@ -209,7 +177,7 @@ def init(
         mcp-maker init sqlite:///my.db --semantic
         mcp-maker init sqlite:///users.db mongodb://localhost/orders
     """
-    _load_connectors()
+    load_all_connectors()
 
     console.print()
     console.print(
@@ -239,55 +207,11 @@ def init(
             schemas.append(connector.inspect())
 
     # Merge schemas if multiple sources
-    if len(schemas) == 1:
-        schema = schemas[0]
-    else:
-        console.print(f"\n  🔗 [bold]Merging {len(schemas)} data sources into one server[/bold]")
-        merged_tables = []
-        merged_resources = []
-        merged_fks = []
-        merged_metadata = {}
-        source_types = []
-        for s in schemas:
-            merged_tables.extend(s.tables)
-            merged_resources.extend(s.resources)
-            merged_fks.extend(s.foreign_keys)
-            merged_metadata[s.source_type] = s.metadata
-            source_types.append(s.source_type)
-
-        # Use the first source type as primary (for template selection)
-        schema = DataSourceSchema(
-            source_type=schemas[0].source_type,
-            source_uri=" + ".join(s.source_uri for s in schemas),
-            tables=merged_tables,
-            resources=merged_resources,
-            foreign_keys=merged_fks,
-            metadata={
-                "multi_source": True,
-                "source_types": source_types,
-                "sources": merged_metadata,
-            },
-        )
-        for st in source_types:
-            console.print(f"    • {st}: {sum(1 for s in schemas if s.source_type == st)} source(s)")
-
-        # Enforce that all mixed sources share the identical base source type
-        unique_types = set(source_types)
-        if len(unique_types) > 1:
-            console.print()
-            console.print(f"  ❌ [bold red]Mixed source types detected:[/bold red] {', '.join(sorted(unique_types))}")
-            console.print("  [dim]You cannot mix different connection types (e.g., Postgres + Notion) into a single server.[/dim]")
-            console.print("  [dim]Please initialize separate MCP servers for drastically different data sources.[/dim]")
-            raise typer.Exit(code=1)
+    schema = merge_schemas(schemas, console)
 
     # Filter tables if --tables specified
     if tables:
-        wanted = {t.strip().lower() for t in tables.split(",") if t.strip()}
-        before_count = len(schema.tables)
-        schema.tables = [t for t in schema.tables if t.name.lower() in wanted]
-        skipped = before_count - len(schema.tables)
-        if skipped > 0:
-            console.print(f"  📋 Filtered: keeping {len(schema.tables)} of {before_count} tables ({skipped} skipped)")
+        filter_tables(schema, tables, console)
         if not schema.tables:
             console.print("\n[red]Error:[/red] No matching tables found.")
             console.print(f"  Requested: {tables}")
@@ -299,6 +223,8 @@ def init(
         console.print("  ⚠️  [yellow]--read-write is deprecated.[/yellow] Use [cyan]--ops read,insert,update,delete[/cyan] instead.")
         parsed_ops = ["read", "insert", "update", "delete"]
     if ops:
+        if read_write:
+            console.print("  ⚠️  [yellow]Both --read-write and --ops provided.[/yellow] Using --ops value; --read-write is ignored.")
         parsed_ops = [op.strip().lower() for op in ops.split(",") if op.strip()]
 
     # Parse RBAC config if provided
@@ -336,46 +262,11 @@ def init(
     _print_schema_summary(schema)
 
     # Schema change detection via lock file
+    diff = None
     if not force:
         old_lock = read_lock_file(output)
         if old_lock:
-            old_hash = old_lock.get("schema_hash", "")
-            new_hash = schema.schema_hash
-            if old_hash != new_hash:
-                diff = DataSourceSchema.schema_diff(
-                    old_lock.get("tables", []),
-                    schema.table_names,
-                    old_columns=old_lock.get("columns"),
-                    new_columns=schema.column_fingerprint,
-                )
-                console.print()
-                console.print("  ⚠️  [yellow]Schema migration detected — auto-updating tools[/yellow]")
-                
-                # Detailed migration report
-                migration_table = RichTable(title="📋 Schema Migration Summary", show_lines=True)
-                migration_table.add_column("Change", style="bold")
-                migration_table.add_column("Details")
-
-                if diff["added"]:
-                    migration_table.add_row("[green]+ Added Tables[/green]", ", ".join(diff["added"]))
-                if diff["removed"]:
-                    migration_table.add_row("[red]- Removed Tables[/red]", ", ".join(diff["removed"]))
-                for tbl, changes in diff.get("column_changes", {}).items():
-                    parts = []
-                    if changes.get("added"):
-                        parts.append(f"[green]+{', '.join(changes['added'])}[/green]")
-                    if changes.get("removed"):
-                        parts.append(f"[red]-{', '.join(changes['removed'])}[/red]")
-                    if changes.get("type_changed"):
-                        parts.append(f"[yellow]~{', '.join(changes['type_changed'])}[/yellow]")
-                    migration_table.add_row(f"↻ {tbl}", " | ".join(parts))
-
-                if diff["added"] or diff["removed"] or diff.get("column_changes"):
-                    console.print()
-                    console.print(migration_table)
-                else:
-                    console.print("  [dim]  Primary key or ordering changes detected.[/dim]")
-                console.print("  [green]✅ Tools will be regenerated with the new schema.[/green]")
+            diff = detect_migration(schema, old_lock, console)
 
     # Step 4: Generate server
     with console.status("[bold green]Generating MCP server..."):
@@ -430,9 +321,7 @@ def init(
     
     if auto_commit:
         from mcp_maker.core.git_utils import commit_schema_changes
-        diff_to_pass = None
-        if not force and 'old_lock' in locals() and old_lock and old_hash != new_hash:
-            diff_to_pass = diff
+        diff_to_pass = diff
             
         files_to_commit = [os.path.basename(autogen_path), ".mcp-maker.lock", ".env.example", ".gitignore"]
         if server_created:
@@ -464,7 +353,7 @@ def inspect(
     ),
 ):
     """🔍 Preview the schema that would be generated (dry run)."""
-    _load_connectors()
+    load_all_connectors()
 
     console.print()
 

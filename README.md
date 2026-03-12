@@ -1,6 +1,8 @@
 # ⚒️ MCP-Maker
 
 [![PyPI version](https://img.shields.io/pypi/v/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
+[![Tests](https://github.com/MrAliHasan/mcp-maker/actions/workflows/tests.yml/badge.svg)](https://github.com/MrAliHasan/mcp-maker/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/MrAliHasan/mcp-maker/branch/main/graph/badge.svg)](https://codecov.io/gh/MrAliHasan/mcp-maker)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/MrAliHasan/mcp-maker/blob/main/LICENSE)
 
@@ -118,7 +120,7 @@ That's it. Your AI can now query your data.
 
 **👉 [Getting Started Guide](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/getting-started.md)** — Tutorial, installation, first server, Claude Desktop setup
 
-**📋 [Full Reference (DOCS.md)](https://github.com/MrAliHasan/mcp-maker/blob/main/DOCS.md)** — CLI commands, schema filtering, env management, architecture, roadmap
+**📋 [CLI Reference & Architecture](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/reference.md)** — CLI commands, env vars, security, architecture
 
 ### Connector Guides (with step-by-step setup, examples, and troubleshooting)
 
@@ -248,7 +250,17 @@ MCP-Maker is designed for community contributions — each new **connector** is 
 
 See [CONTRIBUTING.md](https://github.com/MrAliHasan/mcp-maker/blob/main/CONTRIBUTING.md) for detailed instructions and a step-by-step connector creation guide.
 
+```bash
+make install   # Set up dev environment
+make check     # Run lint + tests
+```
+
+## 🔒 Security
+
+Found a vulnerability? Please report it privately — see [SECURITY.md](https://github.com/MrAliHasan/mcp-maker/blob/main/SECURITY.md).
+
 ## 📄 License
 
 This project is licensed under the [MIT License](https://github.com/MrAliHasan/mcp-maker/blob/main/LICENSE).
 
+This project follows the [Contributor Covenant Code of Conduct](https://github.com/MrAliHasan/mcp-maker/blob/main/CODE_OF_CONDUCT.md).

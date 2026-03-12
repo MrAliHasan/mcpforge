@@ -40,6 +40,34 @@ try:
 except ImportError:
     HubSpotConnector = None  # type: ignore
 
+try:
+    from .excel import ExcelConnector
+except ImportError:
+    ExcelConnector = None  # type: ignore
+
+try:
+    from .mongodb import MongoDBConnector
+except ImportError:
+    MongoDBConnector = None  # type: ignore
+
+try:
+    from .supabase_connector import SupabaseConnector
+except (ImportError, AttributeError):
+    try:
+        from .supabase import SupabaseConnector  # type: ignore
+    except ImportError:
+        SupabaseConnector = None  # type: ignore
+
+try:
+    from .openapi import OpenAPIConnector
+except ImportError:
+    OpenAPIConnector = None  # type: ignore
+
+try:
+    from .redis import RedisConnector
+except ImportError:
+    RedisConnector = None  # type: ignore
+
 __all__ = ["BaseConnector", "SQLiteConnector", "FileConnector"]
 
 if PostgresConnector is not None:
@@ -54,3 +82,13 @@ if NotionConnector is not None:
     __all__.append("NotionConnector")
 if HubSpotConnector is not None:
     __all__.append("HubSpotConnector")
+if ExcelConnector is not None:
+    __all__.append("ExcelConnector")
+if MongoDBConnector is not None:
+    __all__.append("MongoDBConnector")
+if SupabaseConnector is not None:
+    __all__.append("SupabaseConnector")
+if OpenAPIConnector is not None:
+    __all__.append("OpenAPIConnector")
+if RedisConnector is not None:
+    __all__.append("RedisConnector")

@@ -1,95 +1,194 @@
-# HubSpot Data-Bridge (mcp-maker)
+# HubSpot Connector
 
-The HubSpot connector allows your AI agent (like Claude Desktop) to natively interact with your HubSpot CRM. Unlike generic generic connectors, this operates as an **Enterprise Data-Bridge**:
+Connect MCP-Maker to your HubSpot CRM to auto-generate tools for contacts, companies, deals, tickets, and custom objects.
 
-1.  **Deep Schema-Awareness**: It reads your *exact* Custom Properties and UI Labels, so the AI understands your specific business terminology across Contacts, Companies, Deals, Tasks, Meetings, Calls, and Notes.
-2.  **Context Maximization**: It maps `owner_ids` to human emails, pulls your actual Sales Pipeline stages, and reads your Audience Segmentation Lists automatically natively.
-3.  **Compound Tools**: It uses advanced APIs like `search` and `batch_upsert` for high-speed, token-efficient data syncing.
-4.  **Cross-Origin Sync**: You can connect HubSpot and a local SQL database simultaneously, allowing the AI to synchronize data between them.
+## Prerequisites
 
-## 🥊 Why MCP-Maker vs. Cloud Actors (like Apify)?
+- A HubSpot account with a [Private App](https://developers.hubspot.com/docs/api/private-apps) created
+- A Private App Token (PAT) with the required scopes
 
-If you've seen cloud-hosted MCP servers that connect your AI to HubSpot, here is why `mcp-maker`'s Enterprise Data-Bridge is structurally superior:
+### Required Scopes
 
-*   **Zero Vendor Lock-in (Local First):** Cloud actors require you to send your highly sensitive HubSpot Private App Token through their 3rd-party servers, and usually charge per-API call. `mcp-maker` runs 100% locally on your machine. Your token never leaves your device.
-*   **11+ Objects vs 4:** Commercial actors typically hardcode 4 standard objects (Contacts, Companies, Leads, Tasks). `mcp-maker` executes a Deep Auto-Discovery scan that maps **11+ items** (Deals, Tickets, Products, Quotes, Notes, Meetings, Calls, Emails) AND dynamically discovers all of your **Custom Objects**.
-*   **High-Volume Context:** Commercial wrappers only do basic 1-by-1 reads and writes. Our `batch_upsert` and Context Maximization (`hubspot_get_owners`, `pipelines`) tools expose the actual enterprise CRM logic to your AI natively.
+| Scope | Used For |
+|-------|----------|
+| `crm.objects.contacts.read` | Reading contacts |
+| `crm.objects.contacts.write` | Creating/updating contacts |
+| `crm.objects.companies.read` | Reading companies |
+| `crm.objects.companies.write` | Creating/updating companies |
+| `crm.objects.deals.read` | Reading deals and pipelines |
+| `crm.objects.deals.write` | Creating/updating deals |
+| `crm.schemas.contacts.read` | Discovering custom properties |
+| `crm.schemas.companies.read` | Discovering custom properties |
+| `crm.schemas.deals.read` | Discovering custom properties |
 
-## 1. Authentication (Private App Tokens)
+> **Tip:** Grant all `crm.objects.*.read` and `crm.schemas.*.read` scopes to allow MCP-Maker to fully discover your CRM schema.
 
-MCP-Maker uses **Private App Access Tokens (PATs)** for authentication. This is the most secure and frictionless way to connect, keeping your data entirely local to your machine without OAuth redirects.
-
-### How to get your Token:
-1. Log into HubSpot and click the **Settings icon** (⚙️) in the main navigation bar.
-2. In the left sidebar, navigate to **Integrations > Private Apps**.
-3. Click **Create a private app**.
-4. Name your app (e.g., `Local MCP Bridge`).
-5. Go to the **Scopes** tab and check the following required scopes:
-   - `crm.objects.contacts.read` & `.write`
-   - `crm.objects.companies.read` & `.write`
-   - `crm.objects.deals.read` & `.write`
-   - `crm.objects.custom.read` & `.write` (Optional, for custom objects)
-   - `crm.schemas.contacts.read` & `.write` (Required for auto-mapping custom properties)
-   - **Context Scopes (Recommended)**: 
-     - `crm.objects.owners.read` (Maps internal IDs to Human User Emails)
-     - `crm.lists.read` (Allows AI to read Audience Segments)
-     - `tickets` (Required if you use Service Hub)
-6. Click **Create app** and copy the generated token.
-
-## 2. Generating the Server
-
-You can authenticate in two ways.
-
-**Option A: Environment Variable (Recommended for security)**
+## Installation
 
 ```bash
-# Save your token securely
-mcp-maker env set HUBSPOT_ACCESS_TOKEN pat-na1-xxxx-xxxx-xxxx
+pip install "mcp-maker[hubspot]"
+```
 
-# Initialize the server
+## Quick Start
+
+### Step 1: Store your token
+
+```bash
+mcp-maker env set HUBSPOT_ACCESS_TOKEN pat-na1-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+```
+
+Or pass it directly in the URI:
+
+```bash
+mcp-maker init "hubspot://pat=YOUR_TOKEN"
+```
+
+### Step 2: Generate the server
+
+```bash
+# Using environment variable (recommended)
 mcp-maker init hubspot://
+
+# Using inline token
+mcp-maker init "hubspot://pat=pat-na1-xxxxxxxx"
+
+# With write operations
+mcp-maker init hubspot:// --ops read,insert,update
+
+# Only specific objects
+mcp-maker init hubspot:// --tables contacts,deals
 ```
 
-**Option B: Direct URI string**
+### Step 3: Connect to Claude Desktop
 
 ```bash
-mcp-maker init hubspot://pat=pat-na1-xxxx-xxxx-xxxx
-```
-
-## 3. High-Value Compound Tools Generated
-
-MCP-Maker generates native REST wrappers leveraging the standard `requests` library. Your AI will automatically gain access to:
-
--   `list_{table}` / `get_{table}_by_id` : Standard retrieve capabilities.
--   `create_{table}` / `update_{table}_by_id` : Single-record mutations.
--   `delete_{table}_by_id` : Archive records.
-
-**Enterprise "Data-Bridge" Features:**
--   **`hubspot_search_crm_objects`**: Exposes the full HubSpot `filterGroups` JSON schema, allowing the AI to query complex logic (e.g. "Find all Deals closed last month > $5000").
--   **`batch_upsert_{table}`**: Exposes HubSpot's bulk update endpoints. By passing an array of contacts and an `id_property` (e.g. `email`), the AI can synchronize dozens of local database records into HubSpot in a single API round trip.
--   **`hubspot_associate_objects`**: Allows the AI to programmatically link standard and custom objects together.
--   **`hubspot_log_timeline_event`**: Exposes the Behavioral Events API so the AI can leave custom milestones directly on a Contact's timeline.
-
-**Context Maximization Tools:**
--   **`hubspot_get_owners`**: Returns human names and emails so the AI knows who `owner_id: 12345` is.
--   **`hubspot_get_deal_pipelines`**: Pulls your actual Sales pipelines, stage names, and win probabilities directly into context.
--   **`hubspot_get_lists`**: Returns your CRM Audience Segments so you can command the AI to operate on specific groups (e.g. "Sync all contacts in the 'VIP Buyers' list").
-
-## 4. Rate Limiting Protection
-
-Free/Starter HubSpot tiers allow a maximum of 10-15 API calls per second. MCP-Maker automatically injects a `TokenBucketRateLimiter` configured for **4 requests per second** natively into the generated `mcp_server.py`.
-
-This guarantees your LLM will not trigger a temporary API ban (`429 Too Many Requests`) when executing highly parallel tool calls.
-
-## Example: Building a Data-Sync Bridge
-
-By combining connectors, you can instruct your LLM to perform data harmonization.
-
-**Setup:**
-```bash
-mcp-maker init sqlite:///local_leads.db hubspot://
 mcp-maker config --install
 ```
 
-**Prompting Claude:**
-> *"Read all leads lacking a 'Synced' status from SQLite. For each lead, execute a `batch_upsert_contacts` using their email as the unique ID to push them into HubSpot. Then, update the SQLite database to mark them as Synced."*
+## Generated Tools
+
+For each CRM object type discovered, MCP-Maker generates:
+
+| Tool | Description |
+|------|-------------|
+| `list_{object}` | List records with pagination and filters |
+| `get_{object}_by_id` | Get a single record by HubSpot ID |
+| `search_{object}` | Full-text search across all properties |
+| `insert_{object}` | Create a new record (requires `--ops insert`) |
+| `update_{object}` | Update an existing record (requires `--ops update`) |
+| `export_{object}_csv` | Export records as CSV |
+| `export_{object}_json` | Export records as JSON |
+
+### Example: Contacts
+
+```python
+# Auto-generated tool signatures
+list_contacts(limit=100, offset=0)
+get_contacts_by_id(id: str)
+search_contacts(query: str)
+insert_contacts(email: str, firstname: str, lastname: str, ...)
+```
+
+## Features
+
+### Custom Property Discovery
+
+MCP-Maker automatically discovers all custom properties in your HubSpot portal. Properties are mapped to MCP tool parameters with appropriate types:
+
+| HubSpot Type | MCP Type |
+|-------------|----------|
+| `string`, `phonenumber`, `enumeration` | `STRING` |
+| `number` | `FLOAT` |
+| `bool` | `BOOLEAN` |
+| `date`, `datetime` | `DATETIME` |
+
+### Deal Pipeline Mapping
+
+Deal pipelines and stages are automatically discovered and mapped. The generated tools include pipeline-aware filtering:
+
+```bash
+# Ask Claude:
+"Show me all deals in the Sales Pipeline at the Proposal stage"
+```
+
+### Owner ID Resolution
+
+HubSpot stores owners as numeric IDs. MCP-Maker resolves `owner_id` fields to human-readable names in the generated schema, so Claude can display "John Smith" instead of "12345678".
+
+### Batch Operations
+
+With `--ops insert`, batch upsert tools are generated for bulk data import:
+
+```bash
+mcp-maker init hubspot:// --ops read,insert
+# Generates: batch_insert_contacts, batch_insert_companies, etc.
+```
+
+## Authentication
+
+### Option 1: Environment Variable (Recommended)
+
+```bash
+export HUBSPOT_ACCESS_TOKEN="pat-na1-xxxxxxxx"
+mcp-maker init hubspot://
+```
+
+### Option 2: URI Parameter
+
+```bash
+mcp-maker init "hubspot://pat=pat-na1-xxxxxxxx"
+```
+
+> **Security Note:** When using URI parameters, the token is never logged or included in error messages. MCP-Maker automatically redacts tokens in all output.
+
+### Option 3: .env File
+
+```bash
+mcp-maker env set HUBSPOT_ACCESS_TOKEN pat-na1-xxxxxxxx
+source .env
+mcp-maker init hubspot://
+```
+
+## Example Claude Conversations
+
+**User:** "How many contacts do we have?"
+
+**Claude:** Uses `list_contacts(limit=1)` → reads `total` from response → "You have 2,847 contacts."
+
+---
+
+**User:** "Find all deals worth more than $50,000 in the Enterprise pipeline"
+
+**Claude:** Uses `list_deals(limit=100)` with filters → returns matching deals with amounts and stages.
+
+---
+
+**User:** "Add a new contact: Jane Smith, jane@example.com, VP of Engineering"
+
+**Claude:** Uses `insert_contacts(email="jane@example.com", firstname="Jane", lastname="Smith", jobtitle="VP of Engineering")` → confirms creation.
+
+## Troubleshooting
+
+### "HubSpot Private App Token not found"
+
+Your token wasn't found. Either:
+1. Set `HUBSPOT_ACCESS_TOKEN` environment variable
+2. Pass it in the URI: `hubspot://pat=YOUR_TOKEN`
+
+### "403 Forbidden" errors
+
+Your Private App doesn't have the required scopes. Go to **HubSpot → Settings → Integrations → Private Apps** and add the missing scopes listed above.
+
+### "429 Too Many Requests"
+
+MCP-Maker includes built-in rate limiting for HubSpot's API (100 requests per 10 seconds). If you still hit limits, you may have other integrations consuming your quota.
+
+### Only some objects appear
+
+MCP-Maker discovers objects based on your token's scopes. If `tickets` don't appear, ensure your Private App has `crm.objects.tickets.read` scope.
+
+## Limitations
+
+- **Association discovery** is limited to standard associations (contact→company, deal→contact). Custom associations require manual tool additions.
+- **Custom objects** require `crm.schemas.custom.read` scope and may not be discovered on all HubSpot plans.
+- **File/attachment properties** are returned as URLs, not downloaded.

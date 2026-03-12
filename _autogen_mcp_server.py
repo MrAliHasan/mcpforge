@@ -36,15 +36,16 @@ if DB_PATH and DB_PATH.startswith("sqlite:///"):
 elif DB_PATH and DB_PATH.startswith("sqlite://"):
     DB_PATH = DB_PATH[len("sqlite://"):]
 if not DB_PATH:
-    import warnings
-    DB_PATH = "/var/folders/k2/1ydmv0l505z3dbt_hl9fqc3m0000gp/T/tmp52y10dg9.db"
-    warnings.warn(
-        f"DATABASE_URL not set. Using hardcoded path: {DB_PATH}. "
-        "Set DATABASE_URL environment variable for production use.",
-        stacklevel=1,
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set. "
+        "Please set it to your SQLite database path, e.g.: "
+        "export DATABASE_URL='sqlite:///path/to/database.db'"
     )
 
+import atexit
+
 _local = threading.local()
+_all_connections: list = []  # Track all connections for cleanup
 
 
 def _get_connection():
@@ -54,18 +55,73 @@ def _get_connection():
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")  # Better concurrent read performance
         _local.conn = conn
+        _all_connections.append(conn)
     return _local.conn
+
+
+def _cleanup_connections():
+    """Close all thread-local SQLite connections on shutdown."""
+    for conn in _all_connections:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+atexit.register(_cleanup_connections)
+
+_MAX_BATCH_SIZE = 1000
 
 # ─── Consolidated Tools (Large Schema Mode) ───
 
-# Known tables discovered at generation time — prevents SQL injection
+# Known tables and columns discovered at generation time — prevents SQL injection
 _KNOWN_TABLES = { "table_0", "table_1", "table_10", "table_11", "table_12", "table_13", "table_14", "table_15", "table_16", "table_17", "table_18", "table_19", "table_2", "table_20", "table_21", "table_22", "table_23", "table_24", "table_3", "table_4", "table_5", "table_6", "table_7", "table_8", "table_9",  }
+
+_KNOWN_COLUMNS = {
+    "table_0": { "id", "name",  },
+    "table_1": { "id", "name",  },
+    "table_10": { "id", "name",  },
+    "table_11": { "id", "name",  },
+    "table_12": { "id", "name",  },
+    "table_13": { "id", "name",  },
+    "table_14": { "id", "name",  },
+    "table_15": { "id", "name",  },
+    "table_16": { "id", "name",  },
+    "table_17": { "id", "name",  },
+    "table_18": { "id", "name",  },
+    "table_19": { "id", "name",  },
+    "table_2": { "id", "name",  },
+    "table_20": { "id", "name",  },
+    "table_21": { "id", "name",  },
+    "table_22": { "id", "name",  },
+    "table_23": { "id", "name",  },
+    "table_24": { "id", "name",  },
+    "table_3": { "id", "name",  },
+    "table_4": { "id", "name",  },
+    "table_5": { "id", "name",  },
+    "table_6": { "id", "name",  },
+    "table_7": { "id", "name",  },
+    "table_8": { "id", "name",  },
+    "table_9": { "id", "name",  },
+}
 
 def _validate_table(name: str) -> str:
     """Validate that a table name is in the known set to prevent SQL injection."""
     if name not in _KNOWN_TABLES:
         raise ValueError(f"Unknown table: {name}. Available: {', '.join(sorted(_KNOWN_TABLES))}")
     return name
+
+def _validate_column(table: str, column: str) -> str:
+    """Validate that a column name exists in the given table to prevent SQL injection."""
+    # Strip operator suffixes (__gt, __lt, __like, __in)
+    base_col = column
+    for suffix in ("__gt", "__lt", "__like", "__in"):
+        if base_col.endswith(suffix):
+            base_col = base_col[:-len(suffix)]
+            break
+    valid = _KNOWN_COLUMNS.get(table, set())
+    if base_col not in valid:
+        raise ValueError(f"Unknown column '{base_col}' for table '{table}'. Available: {', '.join(sorted(valid))}")
+    return base_col
 
 
 @mcp.tool()
@@ -105,19 +161,20 @@ def query_database(table_name: str, filters: dict | None = None, limit: int = 50
         if filters:
             conditions = []
             for k, v in filters.items():
+                col = _validate_column(table_name, k)
                 if k.endswith("__gt"):
-                    conditions.append(f'"{k[:-4]}" > ?')
+                    conditions.append(f'"{col}" > ?')
                 elif k.endswith("__lt"):
-                    conditions.append(f'"{k[:-4]}" < ?')
+                    conditions.append(f'"{col}" < ?')
                 elif k.endswith("__like"):
-                    conditions.append(f'"{k[:-6]}" LIKE ?')
+                    conditions.append(f'"{col}" LIKE ?')
                 elif k.endswith("__in") and isinstance(v, list):
                     placeholders = ", ".join(["?"] * len(v))
-                    conditions.append(f'"{k[:-4]}" IN ({placeholders})')
+                    conditions.append(f'"{col}" IN ({placeholders})')
                     params.extend(v)
                     continue
                 else:
-                    conditions.append(f'"{k}" = ?')
+                    conditions.append(f'"{col}" = ?')
                 params.append(v)
             query += " WHERE " + " AND ".join(conditions)
         query += " LIMIT ? OFFSET ?"

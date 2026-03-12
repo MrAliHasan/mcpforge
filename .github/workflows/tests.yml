@@ -26,4 +26,11 @@ jobs:
         run: ruff check src/ tests/
 
       - name: Run tests with coverage
-        run: pytest tests/ -v --tb=short --cov=mcp_maker --cov-report=term-missing --cov-fail-under=70
+        run: pytest tests/ -v --tb=short --cov=mcp_maker --cov-report=term-missing --cov-report=xml --cov-fail-under=70
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.12'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

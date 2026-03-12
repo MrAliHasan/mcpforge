@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mcp_maker.connectors.redis_connector import RedisConnector
+from mcp_maker.connectors.redis import RedisConnector
 
 
 class TestRedisConnector:
