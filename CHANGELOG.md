@@ -4,6 +4,39 @@ All notable changes to MCP-Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.4] - 2026-03-13
+
+### Security
+- **SQL Injection Prevention**: Added column whitelist validation (`_KNOWN_COLUMNS` + `_validate_column`) in consolidated-mode tools across SQLite, PostgreSQL, and MySQL templates.
+- **Credential Hardening**: Removed hardcoded `DB_PATH` fallback in SQLite template; now raises `RuntimeError` if `DATABASE_URL` is unset.
+- **API Key Authentication**: Auth wrapper now validates a client-provided `api_key` parameter against `MCP_API_KEY` environment variable, replacing the previous no-op check.
+- **Token Leak Prevention**: HubSpot connector now sanitizes URIs in error messages to prevent API token exposure.
+- **Batch Input Sanitization**: All `batch_insert_` tools now validate column names against schema whitelist before SQL interpolation.
+
+### Fixed
+- **Connection Leaks**: PostgreSQL cursor cleanup moved to `finally` blocks. SQLite connections now registered with `atexit` handler for shutdown cleanup.
+- **Batch Size Limits**: Batch insert/delete operations capped at 1,000 records to prevent resource exhaustion.
+- **CLI Flag Conflict**: Warning now emitted when both `--read-write` and `--ops` flags are provided.
+- **Mixed Source Types**: Multi-source `init` now supports mixing source types (e.g., SQLite + MongoDB) with a warning instead of rejecting.
+- **.env Parser**: Now correctly handles `export` prefix and strips inline `#` comments from unquoted values.
+- **Connector Registration**: Added missing optional connectors (Excel, MongoDB, Supabase, OpenAPI, Redis) to `connectors/__init__.py`.
+- **Connector Loading**: Improved error handling to distinguish missing third-party dependencies from internal import errors.
+
+### Changed
+- **Project Status**: Upgraded from Alpha to Beta (`Development Status :: 4 - Beta`).
+- **Architecture**: Extracted `cli/connectors_loader.py` and `cli/schema_ops.py` from `generator.py`, reducing it from 626 to 512 lines.
+- **Connector Naming**: Renamed `redis_connector.py` to `redis.py` for consistency with all other connectors.
+- **Test Organization**: Moved `test_cloud_inspect.py` and `test_sql_inspect.py` to `tests/core/`. Renamed `test_env_extended.py` to `test_env_edge_cases.py`. Added `conftest.py` and `__init__.py` to all test subdirectories.
+- **Documentation**: Deleted root-level `DOCS.md` in favor of `docs/reference.md`. Expanded `docs/hubspot.md` from 95 to 250+ lines.
+- **CI/CD**: Added Codecov upload, coverage badge, `ruff` and `mypy` configuration in `pyproject.toml`.
+- **Repository Hygiene**: Removed tracked generated files and test artifacts from git.
+
+### Added
+- **SECURITY.md**: Vulnerability reporting policy with 48-hour response SLA.
+- **CODE_OF_CONDUCT.md**: Contributor Covenant v2.1.
+- **Makefile**: Standard `make test`, `make lint`, `make fmt`, `make clean` targets.
+- **Test Coverage**: 272 tests passing (up from 256), including 22 new regression tests for security and correctness fixes.
+
 ## [0.2.3] - 2026-02-23
 
 ### Added
