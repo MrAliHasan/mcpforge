@@ -4,6 +4,12 @@ All notable changes to MCP-Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.5] - 2026-03-13
+
+### Fixed
+- **Critical: Insert function parameter ordering** — Schemas with nullable columns before non-nullable columns (e.g., foreign keys before `NOT NULL` fields) caused `SyntaxError: parameter without a default follows parameter with a default` in generated server code. Fixed across all 6 SQL templates (SQLite, PostgreSQL, MySQL + async variants) by sorting required parameters before optional ones.
+- **Codecov CI integration** — Added `CODECOV_TOKEN` secret and upgraded to `codecov-action@v5`.
+
 ## [0.2.4] - 2026-03-13
 
 ### Security

@@ -388,7 +388,7 @@ def aggregate_{{ table.name }}(group_by: str, agg_function: str = "count", agg_c
 
 {% if 'insert' in tbl_ops %}
 @mcp.tool()
-def insert_{{ table.name }}({% for col in table.columns if not col.primary_key %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ' | None = None' if col.nullable else '' }}{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
+def insert_{{ table.name }}({% for col in table.columns if not col.primary_key and not col.nullable %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }}{{ ', ' }}{% endfor %}{% for col in table.columns if not col.primary_key and col.nullable %}{{ col.name }}: {{ 'int' if col.type.value == 'integer' else ('float' if col.type.value == 'float' else ('bool' if col.type.value == 'boolean' else 'str')) }} | None = None{{ ', ' if not loop.last else '' }}{% endfor %}) -> dict:
     """Insert a new row into the '{{ table.name }}' table.
 
     Returns:

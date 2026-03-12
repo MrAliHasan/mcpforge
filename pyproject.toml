@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-maker"
-version = "0.2.4"
+version = "0.2.5"
 description = "Auto-generate MCP servers from any data source. Zero code required."
 readme = "README.md"
 license = "MIT"
