@@ -1,6 +1,6 @@
 """MCP-Maker CLI — Command-line interface for auto-generating MCP servers."""
 
-from . import deploy, environment, generator, server
+from . import chat, deploy, environment, generator, server
 from .environment import _env_delete, _env_list, _env_read, _env_set, _env_show, _env_write, _mask_value
 from .main import app, console
 
