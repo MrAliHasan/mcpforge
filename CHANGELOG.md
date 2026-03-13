@@ -4,6 +4,22 @@ All notable changes to MCP-Maker will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.6] - 2026-03-13
+
+### Added
+- **`mcp-maker chat` command** — Interactive terminal chat with your SQLite database via natural language. Uses LLM function calling to auto-generate tools from your schema and execute queries.
+- **OpenAI & OpenRouter support** — Chat supports both OpenAI and OpenRouter (500+ models including Claude, Gemini, Llama, DeepSeek). Provider auto-detected from API key prefix (`sk-or-` → OpenRouter).
+- **`core/agent.py`** — New module: `schema_to_tools()` converter, `QueryExecutor` for SQL execution, `ChatAgent` for multi-turn LLM conversations with tool calling.
+- **`cli/chat.py`** — Rich-formatted REPL with tool call transparency, built-in commands (`schema`, `clear`, `exit`).
+- **`chat` optional dependency** — `pip install "mcp-maker[chat]"` installs `openai>=1.0.0`.
+- **35 new tests** — Comprehensive coverage for schema-to-tools conversion, query execution, and ChatAgent with mocked LLM (307 total tests).
+
+### Fixed
+- **LLM API error messages** — Errors from OpenAI/OpenRouter now show the actual error message (e.g., "Invalid API key", "model not found") instead of raw HTTP status codes.
+
+### Changed
+- **README rewritten** — Professional open-source documentation with two-path Quick Start, generated tools table, security section, MCP client compatibility table.
+
 ## [0.2.5] - 2026-03-13
 
 ### Fixed

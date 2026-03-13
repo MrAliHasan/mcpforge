@@ -5,262 +5,312 @@
 [![codecov](https://codecov.io/gh/MrAliHasan/mcp-maker/branch/main/graph/badge.svg)](https://codecov.io/gh/MrAliHasan/mcp-maker)
 [![Python 3.10+](https://img.shields.io/pypi/pyversions/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/MrAliHasan/mcp-maker/blob/main/LICENSE)
+[![Downloads](https://img.shields.io/pypi/dm/mcp-maker.svg)](https://pypi.org/project/mcp-maker/)
 
 **Auto-generate MCP servers from any data source. Zero code required.**
 
-Point MCP-Maker at a database, spreadsheet, or directory and get a fully functional [MCP](https://modelcontextprotocol.io/) server in seconds — ready for Claude, ChatGPT, Cursor, and any MCP-compatible AI.
+Point MCP-Maker at a database, spreadsheet, or API and get a fully functional [MCP](https://modelcontextprotocol.io/) server in seconds — ready for Claude, ChatGPT, Cursor, and any MCP-compatible AI client.
 
-> **Note:** MCP-Maker is built on top of the official [MCP Python SDK](https://pypi.org/project/mcp/) (`mcp` package). The SDK is the low-level framework for building MCP servers in Python — **you write every tool, resource, and handler yourself**. MCP-Maker uses that SDK under the hood to **auto-generate** everything from your data source. Think of it like Django vs raw SQL: same power, less work.
+```
+pip install mcp-maker
+```
+
+> **What is MCP?** The [Model Context Protocol](https://modelcontextprotocol.io/) is the open standard for connecting AI to external tools and data. MCP-Maker auto-generates a complete MCP server from your data source — you don't write a single line of code.
+
+---
+
+## Quick Start
+
+### Generate an MCP Server (for Claude, Cursor, ChatGPT)
+
+```bash
+pip install mcp-maker
+
+# Generate from your database
+mcp-maker init sqlite:///mydata.db
+
+# Connect to Claude Desktop
+mcp-maker config --install
+
+# Restart Claude — your AI can now query your data
+```
+
+### Chat directly in your terminal
+
+No Claude needed — talk to your **SQLite** database right from the terminal:
+
+```bash
+pip install "mcp-maker[chat]"
+
+# Chat with any SQLite database (no init required)
+mcp-maker chat sqlite:///mydata.db
+```
+
+> **💡 `init` vs `chat`:** `init` generates a server file for AI clients (Claude, Cursor) and supports **all 13 connectors**. `chat` lets you query directly from the terminal — currently supports **SQLite only** (PostgreSQL and MySQL coming soon).
+
+```
+╭──────────────────────────────────╮
+│ 💬 MCP-Maker Chat                │
+╰──────────── v0.2.6 ─────────────╯
+📊 Connected: 3 tables (users, orders, products)
+🔧 12 tools available (read-only)
+🧠 Provider: OpenAI (gpt-4o-mini)
+
+You > How many orders were placed this month?
+🔧 count_orders(date_from='2026-03-01')
+There were 47 orders placed this month.
+
+You > Who is our top customer?
+🔧 list_orders(order_by='total', order_dir='desc', limit=1)
+Your top customer is Sarah Chen with $12,450 in orders.
+```
+
+**LLM Providers:** `chat` supports **OpenAI** and **OpenRouter** (500+ models including Claude, Gemini, Llama, DeepSeek):
+
+```bash
+# OpenAI (default)
+mcp-maker chat sqlite:///data.db --api-key sk-xxx
+
+# OpenRouter — auto-detected from key prefix
+mcp-maker chat sqlite:///data.db --api-key sk-or-xxx --model anthropic/claude-sonnet-4
+mcp-maker chat sqlite:///data.db --api-key sk-or-xxx --model google/gemini-2.5-flash
+mcp-maker chat sqlite:///data.db --api-key sk-or-xxx --model deepseek/deepseek-chat
+```
 
 ---
 
 ## How It Works
 
 ```
-Your Data Source          MCP-Maker              MCP Server
+Your Data Source          MCP-Maker              Output
 ┌──────────────┐    ┌──────────────────┐    ┌─────────────────────────┐
-│ SQLite DB    │    │                  │    │ 📄 server.py (Editable) │
-│ Google Sheet │───▶│  mcp-maker init  │───▶│   ↳ Add custom tools    │
-│ Airtable     │    │                  │    │                         │
-│ Notion DB    │    │  (auto-inspect)  │    │ ⚙️ _autogen_tools.py      │
-│ CSV files    │    │  (auto-generate) │    │   ↳ list_users()        │
-│ PostgreSQL   │    │                  │    │   ↳ search_users()      │
-│ MySQL        │    └──────────────────┘    └─────────────────────────┘
-└──────────────┘                            Ready for Claude ✅
+│ SQLite       │    │                  │    │ 📄 mcp_server.py        │
+│ PostgreSQL   │    │                  │    │   ↳ Editable, yours     │
+│ MySQL        │───▶│  mcp-maker init  │───▶│                         │
+│ Airtable     │    │                  │    │ ⚙️  _autogen_tools.py    │
+│ Google Sheets│    │  (auto-inspect)  │    │   ↳ list_users()        │
+│ Notion       │    │  (auto-generate) │    │   ↳ search_orders()     │
+│ CSV/JSON     │    │                  │    │   ↳ join_tasks_users()   │
+│ +6 more      │    └──────────────────┘    └─────────────────────────┘
+└──────────────┘                            Standalone Python file ✅
+                                            Works forever, even after
+                                            uninstalling MCP-Maker
 ```
 
-## 🏢 Enterprise-Ready Architecture
+MCP-Maker generates a **standalone Python file**. No runtime dependency on MCP-Maker — uninstall it after generation and your server keeps running.
 
-- **Non-Destructive Generation**: `mcp-maker init` safely outputs two files: `server.py` (your editable entry point) and `_autogen_tools.py`. Regenerate as often as you like—your custom tools and business logic are never overwritten.
-- **Credential Hardening**: Connection strings and API keys are strictly forbidden in generated files. They are securely loaded via generated `.env` files and standard environment variables.
-- **API Key Authentication (`--auth api-key`)**: Gate access to your generated server with an `MCP_API_KEY` environment variable. Every tool call is wrapped with an auth check.
-- **SSL/TLS by Default**: All PostgreSQL and MySQL connections enforce encrypted transport (`sslmode=require` / `ssl=True`). Disable with `--no-ssl` for local development only.
-- **Schema Versioning & Migrations**: Generates a `.mcp-maker.lock` file tracking your schema fingerprint. On re-generation, detects added/removed tables/columns and displays a detailed migration diff with color-coded changes, then auto-updates tools.
-- **Multi-Source Servers**: Combine multiple data sources into a single server: `mcp-maker init sqlite:///users.db mongodb://localhost/orders` merges schemas and generates tools for both.
-- **Relationship Detection**: Auto-discovers foreign keys in SQL databases and generates `join_` tools (e.g., `join_orders_with_users`).
-- **Pagination Helpers**: All `list_` tools return `{results, total, has_more, next_offset}` for proper cursor-based pagination.
-- **Column Selection**: Pass `fields="name,email"` to any `list_` tool to receive only specific columns instead of `SELECT *`.
-- **Date Range Filters**: When date/datetime columns are detected, `list_` tools auto-generate `date_from`/`date_to` parameters.
-- **Batch Operations**: `batch_insert_` and `batch_delete_` tools wrapped in transactions for all SQL connectors, MongoDB, and Supabase.
-- **Export Tools**: `export_{table}_csv()` and `export_{table}_json()` for every table across all connectors.
-- **Webhook Support (`--webhooks`)**: Register, list, and remove webhooks for real-time notifications on insert/update/delete events.
-- **Redis Pub/Sub**: `publish_message()`, `channel_list()`, and `channel_subscribers()` tools for Redis channels.
-- **Async Generation (`--async`)**: Generate async tools using `aiosqlite`, `asyncpg`, or `aiomysql` for high-concurrency MCP servers.
-- **LLM Context Optimization (`--consolidate-threshold`)**: For massive schemas (>20 tables), MCP-Maker intelligently switches from generating per-table CRUD tools to consolidated generic tools (e.g., `query_database`) to prevent LLM context window bloat and reasoning degradation.
-- **Structured Audit Logging (`--audit`)**: Optionally generate servers that output structured JSON logs for every tool invocation, ready for ingestion into Datadog, Splunk, or ELK.
-- **Async-Ready Connection Pooling**: Fast, thread-safe database interactions with built-in connection pooling for PostgreSQL (`psycopg2.pool`), MySQL, and SQLite.
-- **Guaranteed Code Quality**: All generated Python code is automatically syntactically verified through `ast.parse` and statically formatted with `black`.
+---
 
-## ✨ Why MCP-Maker?
+## Supported Connectors (13)
 
-- **Zero-Code Generation**: Instantly maps tables, columns, and APIs into atomic MCP tools. No coding required.
-- **Zero Vendor Lock-In**: The generated `mcp_server.py` file is a 100% standalone, standard Python file built entirely on the official SDK. You can uninstall MCP-Maker immediately after generation and your server will continue to run flawlessly forever.
-- **Granular Security (`--ops`)**: You control exactly what the LLM can do. Explicitly authorize `read`, `insert`, `update`, or `delete` operations.
-- **Auto-Rate Limiting**: Built-in TokenBucket throttling for Cloud APIs (Airtable, Notion, Google Sheets) prevents `429 Too Many Requests` bans when LLMs make aggressive parallel tool calls.
-- **Semantic Vector Search (`--semantic`)**: Automatically spins up a ChromaDB vector database alongside your SQL tables for high-quality, meaning-based search.
-- **Context Window Optimized (`--tables`)**: Only expose the data you actually need to prevent LLM context bloat and hallucination.
-- **Environment Management**: Safely manage API credentials via `mcp-maker env` instead of hardcoding them.
-
-## 🔌 Supercharged Connectors
-
-While basic tools stop at simple SQL tables, MCP-Maker's Connectors are engineered for complex enterprise use cases:
-
-- **HubSpot**: Acts as an **Enterprise Data-Bridge**, intelligently auto-discovering custom objects, custom properties, mapping Deal Pipelines natively, resolving `owner_ids` to human names, and exposing batch upsert endpoints.
-- **Notion**: Supports **Multi-Database URIs** (`notion://DB1,DB2`), automatically parses **20+ property types** (Rollups, Relations, Formulas), handles cursor pagination, and exposes deep `filter` tools.
-- **Airtable**: Generates tools to query via Airtable **Formulas**, target specific **Views**, automatically sorts records, and discovers your Bases directly (`mcp-maker bases`).
-- **Google Sheets**: Treats entire tabs as discrete SQL-like tables, infers column types, and provides pinpoint `update_cell` tools.
-- **PostgreSQL / MySQL**: Detects Primary Keys automatically, maps all complex SQL native types, and fully supports SSL-encrypted TLS connections.
-
-## Quick Start (2 minutes)
-
-### Step 1: Install
+| Connector | URI Format | Auth | Install |
+|-----------|-----------|------|---------|
+| **SQLite** | `sqlite:///my.db` | — | Built-in |
+| **Files** (CSV/JSON) | `./data/` | — | Built-in |
+| **PostgreSQL** | `postgres://user:pass@host/db` | DB creds | `pip install "mcp-maker[postgres]"` |
+| **MySQL** | `mysql://user:pass@host/db` | DB creds | `pip install "mcp-maker[mysql]"` |
+| **Airtable** | `airtable://appXXXX` | API key | `pip install "mcp-maker[airtable]"` |
+| **Google Sheets** | `gsheet://SPREADSHEET_ID` | Service acct | `pip install "mcp-maker[gsheets]"` |
+| **Notion** | `notion://DATABASE_ID` | Integration | `pip install "mcp-maker[notion]"` |
+| **Excel** | `excel:///path.xlsx` | — | `pip install "mcp-maker[excel]"` |
+| **MongoDB** | `mongodb://user:pass@host/db` | DB creds | `pip install "mcp-maker[mongodb]"` |
+| **Supabase** | `supabase://PROJECT_REF` | API key | `pip install "mcp-maker[supabase]"` |
+| **REST API** | `openapi:///spec.yaml` | API token | `pip install "mcp-maker[openapi]"` |
+| **Redis** | `redis://host:6379/0` | Password | `pip install "mcp-maker[redis]"` |
+| **HubSpot** | `hubspot://pat=TOKEN` | PAT | `pip install "mcp-maker[hubspot]"` |
 
 ```bash
+# Install all connectors at once
+pip install "mcp-maker[all]"
+```
+
+---
+
+## Generated Tools
+
+For each table/collection, MCP-Maker generates:
+
+| Tool | Description |
+|------|-------------|
+| `list_{table}` | Paginated listing with filters, sorting, field selection, date ranges |
+| `get_{table}` | Lookup by primary key |
+| `search_{table}` | Full-text search across string columns |
+| `count_{table}` | Count with optional filters |
+| `insert_{table}` | Insert a single record *(with `--ops insert`)* |
+| `update_{table}` | Update by ID *(with `--ops update`)* |
+| `delete_{table}` | Delete by ID *(with `--ops delete`)* |
+| `batch_insert_{table}` | Bulk insert up to 1,000 records in a transaction |
+| `batch_delete_{table}` | Bulk delete by IDs |
+| `join_{from}_with_{to}` | Cross-table queries via auto-discovered foreign keys |
+| `export_{table}_csv` | Export to CSV |
+| `export_{table}_json` | Export to JSON |
+
+Additional tools based on flags: `--semantic` (vector search), `--webhooks` (event hooks), `--audit` (structured logging).
+
+---
+
+## CLI Reference
+
+```bash
+# Core
+mcp-maker init <source>                       # Generate MCP server
+mcp-maker chat <source>                       # Chat with your database (NEW)
+mcp-maker serve                               # Run the generated server
+mcp-maker inspect <source>                    # Dry run — preview what would be generated
+
+# Configuration
+mcp-maker config --install                    # Auto-configure Claude Desktop
+mcp-maker env set KEY VALUE                   # Store API keys in .env
+mcp-maker env list                            # List stored keys (masked)
+mcp-maker list-connectors                     # Show available connectors
+
+# Deployment
+mcp-maker deploy --platform railway           # Generate Railway deployment files
+mcp-maker deploy --platform render            # Render deployment
+mcp-maker deploy --platform fly               # Fly.io deployment
+
+# Generation Options
+mcp-maker init <source> --ops read,insert     # Control what the LLM can do
+mcp-maker init <source> --tables users,orders # Only expose specific tables
+mcp-maker init <source> --async               # Async tools (aiosqlite/asyncpg)
+mcp-maker init <source> --auth api-key        # Require MCP_API_KEY for access
+mcp-maker init <source> --semantic            # Enable ChromaDB vector search
+mcp-maker init <source> --webhooks            # Real-time event notifications
+mcp-maker init <source> --audit               # Structured JSON audit logging
+mcp-maker init <source> --cache 60            # Cache reads for N seconds
+mcp-maker init <source> --no-ssl              # Disable SSL (local dev only)
+mcp-maker init <source> --consolidate-threshold 10  # Consolidate large schemas
+
+# Chat Options
+mcp-maker chat <source> --api-key sk-xxx      # OpenAI key
+mcp-maker chat <source> --api-key sk-or-xxx   # OpenRouter key (auto-detected)
+mcp-maker chat <source> --model gpt-4o        # Choose model
+mcp-maker chat <source> --provider openrouter # Explicit provider
+mcp-maker chat <source> --tables users        # Limit to specific tables
+```
+
+---
+
+## Architecture & Security
+
+### Non-Destructive Generation
+
+MCP-Maker generates two files:
+- **`mcp_server.py`** — Your editable entry point. Add custom tools, business logic, middleware. Never overwritten on re-generation.
+- **`_autogen_mcp_server.py`** — Auto-generated tools. Regenerated safely when you run `init` again.
+
+### Security Features
+
+| Feature | Description |
+|---------|-------------|
+| **Credential Isolation** | Connection strings and API keys loaded from `.env` — never embedded in generated code |
+| **Granular Permissions** | `--ops read` (default) prevents writes. Explicitly enable `insert`, `update`, `delete` |
+| **API Key Auth** | `--auth api-key` gates every tool call behind `MCP_API_KEY` validation |
+| **SSL/TLS by Default** | PostgreSQL and MySQL connections enforce encrypted transport |
+| **SQL Injection Prevention** | Column whitelist validation on all dynamic queries |
+| **Batch Limits** | Bulk operations capped at 1,000 records to prevent resource exhaustion |
+| **Rate Limiting** | Built-in token bucket throttling for cloud APIs (Airtable, Notion, Sheets) |
+
+### Schema Versioning
+
+MCP-Maker generates a `.mcp-maker.lock` file tracking your schema fingerprint. On re-generation, it detects changes (added/removed tables and columns) and displays a color-coded migration diff before updating tools.
+
+### Large Schema Handling
+
+For schemas with 20+ tables, the `--consolidate-threshold` flag switches from per-table tools to consolidated generic tools (e.g., `query_database`), preventing LLM context window overflow.
+
+---
+
+## MCP Client Compatibility
+
+The generated server works with any MCP-compatible client:
+
+| Client | Setup |
+|--------|-------|
+| **Claude Desktop** | `mcp-maker config --install` (automatic) |
+| **Cursor** | Add to Cursor Settings → MCP Servers |
+| **Windsurf** | Add to `~/.codeium/windsurf/mcp_config.json` |
+| **VS Code + Continue** | Add to Continue's MCP config |
+| **ChatGPT Desktop** | OpenAI MCP support (rolling out) |
+| **Any MCP client** | Run `mcp-maker serve` and point to it |
+
+---
+
+## Installation
+
+```bash
+# Core (SQLite + Files + CLI)
 pip install mcp-maker
+
+# With chat support (OpenAI / OpenRouter)
+pip install "mcp-maker[chat]"
+
+# With specific connectors
+pip install "mcp-maker[postgres]"
+pip install "mcp-maker[airtable]"
+pip install "mcp-maker[gsheets]"
+pip install "mcp-maker[notion]"
+
+# With async support
+pip install "mcp-maker[async-sqlite]"
+pip install "mcp-maker[async-postgres]"
+pip install "mcp-maker[async-mysql]"
+
+# Everything
+pip install "mcp-maker[all]"
 ```
 
-### Step 2: Generate a server from your data
-
-```bash
-# SQLite database
-mcp-maker init sqlite:///path/to/my_database.db
-
-# CSV/JSON files in a directory
-mcp-maker init ./my-data/
-
-# Google Sheets (see docs for auth setup)
-mcp-maker init gsheet://YOUR_SPREADSHEET_ID
-
-# Airtable
-mcp-maker init airtable://appXXXXXXXXXX
-
-# Notion
-mcp-maker init notion://DATABASE_ID
-```
-
-This creates a `mcp_server.py` file with all your tools.
-
-### Step 3: Connect to Claude Desktop
-
-```bash
-# Auto-configure Claude Desktop
-mcp-maker config --install
-
-# Restart Claude Desktop, then ask:
-# "What tables are in my database?"
-# "Show me the top 10 customers"
-# "Search for records containing 'Python'"
-```
-
-That's it. Your AI can now query your data.
+**Requirements:** Python 3.10+
 
 ---
 
 ## 📖 Documentation
 
-**👉 [Getting Started Guide](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/getting-started.md)** — Tutorial, installation, first server, Claude Desktop setup
+| Guide | Description |
+|-------|-------------|
+| **[Getting Started](docs/getting-started.md)** | Installation, first server, Claude Desktop setup |
+| **[CLI & Architecture Reference](docs/reference.md)** | All commands, env vars, security details |
 
-**📋 [CLI Reference & Architecture](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/reference.md)** — CLI commands, env vars, security, architecture
+### Connector Guides
 
-### Connector Guides (with step-by-step setup, examples, and troubleshooting)
+Each guide includes step-by-step setup, examples, and troubleshooting:
 
 | Connector | Guide |
 |-----------|-------|
-| SQLite | [docs/sqlite.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/sqlite.md) |
-| Files (CSV/JSON) | [docs/files.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/files.md) |
-| PostgreSQL | [docs/postgresql.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/postgresql.md) |
-| MySQL | [docs/mysql.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/mysql.md) |
-| Airtable | [docs/airtable.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/airtable.md) — Formulas, views, sorting, CRUD |
-| Google Sheets | [docs/google-sheets.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/google-sheets.md) — GCP service account setup |
-| Notion | [docs/notion.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/notion.md) — Integration setup, multi-DB support |
-| Excel | [docs/excel.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/excel.md) — .xlsx files, sheets as tables |
-| MongoDB | [docs/mongodb.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/mongodb.md) — Document sampling, full CRUD |
-| Supabase | [docs/supabase.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/supabase.md) — Auth/storage tools, PostgREST |
-| REST API | [docs/openapi.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/openapi.md) — OpenAPI/Swagger specs |
-| Redis | [docs/redis.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/redis.md) — Key grouping, type-aware tools |
-| HubSpot | [docs/hubspot.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/hubspot.md) — Enterprise CRM Data-Bridge, PAT auth |
-
-### Feature Guides
-
-| Feature | Guide |
-|---------|-------|
-| Semantic Search | [docs/semantic-search.md](https://github.com/MrAliHasan/mcp-maker/blob/main/docs/semantic-search.md) — ChromaDB vector search, search by meaning |
+| SQLite | [docs/sqlite.md](docs/sqlite.md) |
+| Files (CSV/JSON) | [docs/files.md](docs/files.md) |
+| PostgreSQL | [docs/postgresql.md](docs/postgresql.md) |
+| MySQL | [docs/mysql.md](docs/mysql.md) |
+| Airtable | [docs/airtable.md](docs/airtable.md) |
+| Google Sheets | [docs/google-sheets.md](docs/google-sheets.md) |
+| Notion | [docs/notion.md](docs/notion.md) |
+| Excel | [docs/excel.md](docs/excel.md) |
+| MongoDB | [docs/mongodb.md](docs/mongodb.md) |
+| Supabase | [docs/supabase.md](docs/supabase.md) |
+| REST API (OpenAPI) | [docs/openapi.md](docs/openapi.md) |
+| Redis | [docs/redis.md](docs/redis.md) |
+| HubSpot | [docs/hubspot.md](docs/hubspot.md) |
+| Semantic Search | [docs/semantic-search.md](docs/semantic-search.md) |
 
 ---
 
-## 🔌 Supported Connectors (13)
+## Contributing
 
-| Connector | URI Format | Auth Required | Install |
-|-----------|-----------|-------------|---------|
-| SQLite | `sqlite:///my.db` | ❌ | Built-in |
-| Files | `./data/` | ❌ | Built-in |
-| PostgreSQL | `postgres://user:pass@host/db` | ✅ DB creds | `pip install "mcp-maker[postgres]"` |
-| MySQL | `mysql://user:pass@host/db` | ✅ DB creds | `pip install "mcp-maker[mysql]"` |
-| Airtable | `airtable://appXXXX` | ✅ API key | `pip install "mcp-maker[airtable]"` |
-| Google Sheets | `gsheet://SPREADSHEET_ID` | ✅ Service acct | `pip install "mcp-maker[gsheets]"` |
-| Notion | `notion://DATABASE_ID` | ✅ Integration | `pip install "mcp-maker[notion]"` |
-| Excel | `./data.xlsx` or `excel:///path.xlsx` | ❌ | `pip install "mcp-maker[excel]"` |
-| MongoDB | `mongodb://user:pass@host/db` | ✅ DB creds | `pip install "mcp-maker[mongodb]"` |
-| Supabase | `supabase://PROJECT_REF` | ✅ API key | `pip install "mcp-maker[supabase]"` |
-| REST API | `openapi:///path/to/spec.yaml` | ✅ API token | `pip install "mcp-maker[openapi]"` |
-| Redis | `redis://host:6379/0` | ✅ Password | `pip install "mcp-maker[redis]"` |
-| HubSpot | `hubspot://pat=YOUR_TOKEN` | ✅ PAT | `pip install "mcp-maker[hubspot]"` |
+MCP-Maker is designed for community contributions — each connector is a self-contained PR.
 
-Install all connectors at once:
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for a step-by-step guide.
 
 ```bash
-pip install "mcp-maker[all]"
+git clone https://github.com/MrAliHasan/mcp-maker.git
+cd mcp-maker
+make install    # Set up dev environment
+make check      # Run lint + tests (272 tests)
 ```
 
----
+## Security
 
-## CLI Commands
+Found a vulnerability? Please report it privately via **[SECURITY.md](SECURITY.md)**.
 
-```bash
-mcp-maker init <source>                    # Generate an MCP server
-mcp-maker init <source> --ops read,insert  # Include specific write operations
-mcp-maker init <source> --tables users,orders  # Only include specific tables
-mcp-maker init <source> --semantic         # Enable vector/semantic search
-mcp-maker init <source> --audit            # Enable structured JSON audit logging
-mcp-maker init <source> --auth api-key     # Require MCP_API_KEY for access
-mcp-maker init <source> --async            # Generate async tools (aiosqlite/asyncpg)
-mcp-maker init <source> --cache 60          # Cache read results for 60 seconds
-mcp-maker init <source> --no-ssl           # Disable SSL for local development
-mcp-maker init <source> --force            # Skip schema change warnings
-mcp-maker init <source> --consolidate-threshold 10 # Consolidate large schemas
-mcp-maker deploy --platform railway        # Generate deployment files
-mcp-maker deploy --platform render         # Render deployment
-mcp-maker deploy --platform fly            # Fly.io deployment
-mcp-maker serve                            # Run the generated server
-mcp-maker inspect <source>                 # Preview what would be generated (dry run)
-mcp-maker config --install                 # Auto-write Claude Desktop config
-mcp-maker env set KEY VALUE                # Store API keys safely in .env
-mcp-maker env list                         # List stored keys (masked)
-mcp-maker list-connectors                  # Show available connectors
-mcp-maker bases                            # Discover Airtable bases
-```
+## License
 
----
-
-## 📦 Installation
-
-```bash
-# Core (SQLite + Files)
-pip install mcp-maker
-
-# With PostgreSQL support
-pip install "mcp-maker[postgres]"
-
-# With Airtable support
-pip install "mcp-maker[airtable]"
-
-# With Google Sheets support
-pip install "mcp-maker[gsheets]"
-
-# With Notion support
-pip install "mcp-maker[notion]"
-
-# With semantic search (ChromaDB vector search)
-pip install "mcp-maker[semantic]"
-
-# With async support
-pip install "mcp-maker[async-sqlite]"    # aiosqlite
-pip install "mcp-maker[async-postgres]"  # asyncpg
-pip install "mcp-maker[async-mysql]"     # aiomysql
-
-# New connectors
-pip install "mcp-maker[excel]"           # Excel (.xlsx)
-pip install "mcp-maker[mongodb]"         # MongoDB
-pip install "mcp-maker[supabase]"        # Supabase
-pip install "mcp-maker[openapi]"         # REST API (OpenAPI specs)
-pip install "mcp-maker[redis]"           # Redis
-
-# All connectors + semantic search + async
-pip install "mcp-maker[all]"
-
-# Development
-pip install "mcp-maker[dev]"
-```
-
----
-
-## 🤝 Contributing
-
-MCP-Maker is designed for community contributions — each new **connector** is a self-contained PR.
-
-See [CONTRIBUTING.md](https://github.com/MrAliHasan/mcp-maker/blob/main/CONTRIBUTING.md) for detailed instructions and a step-by-step connector creation guide.
-
-```bash
-make install   # Set up dev environment
-make check     # Run lint + tests
-```
-
-## 🔒 Security
-
-Found a vulnerability? Please report it privately — see [SECURITY.md](https://github.com/MrAliHasan/mcp-maker/blob/main/SECURITY.md).
-
-## 📄 License
-
-This project is licensed under the [MIT License](https://github.com/MrAliHasan/mcp-maker/blob/main/LICENSE).
-
-This project follows the [Contributor Covenant Code of Conduct](https://github.com/MrAliHasan/mcp-maker/blob/main/CODE_OF_CONDUCT.md).
+[MIT License](LICENSE) · [Code of Conduct](CODE_OF_CONDUCT.md)
