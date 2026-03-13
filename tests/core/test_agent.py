@@ -24,7 +24,6 @@ from mcp_maker.core.schema import (
     Table,
 )
 
-
 # ──── Fixtures ────
 
 
@@ -115,7 +114,6 @@ class TestSchemaToTools:
 
     def test_generates_tools_for_each_table(self, sample_schema):
         tools = schema_to_tools(sample_schema)
-        names = [t["function"]["name"] for t in tools]
         # employees: list, get, search, count = 4
         # projects: list, get, search, count = 4
         assert len(tools) == 8

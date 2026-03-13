@@ -9,7 +9,7 @@ from .server import _get_claude_config_path
 
 __all__ = [
     "app", "console",
-    "generator", "server", "environment", "deploy",
+    "chat", "generator", "server", "environment", "deploy",
     "_get_claude_config_path",
     "_env_read", "_env_write", "_mask_value", "_env_set", "_env_list", "_env_show", "_env_delete",
 ]
